@@ -1,0 +1,43 @@
+/**
+ * Policy Engine - Public API
+ */
+
+export { PolicyEngine, createPolicyEngine } from './main';
+export type {
+  IPolicy,
+  IPolicyStatement,
+  IPolicyCondition,
+  IPolicyWithHistory,
+  IPolicyVersion,
+  IPolicyEvaluationRequest,
+  IPolicyEvaluationResult,
+  IBulkPolicyEvaluationRequest,
+  IBulkPolicyEvaluationResult,
+  IPolicyTemplate,
+  IPolicyVariable,
+  IAttributeMap,
+  ITemporalAttributes,
+  IPolicyEvaluationContext,
+  IConditionEvaluationResult,
+  IPolicyComplianceCheck,
+  IComplianceViolation,
+  IPolicyAuditEntry,
+  IPolicyStats,
+  IPolicyConflict,
+  IPolicyEvent,
+  PolicyListener,
+  IPolicyEngineConfig,
+  ICreatePolicyRequest,
+  IUpdatePolicyRequest,
+  IInstantiatePolicyTemplateRequest,
+  IPolicyCacheEntry,
+  IEffectCombinationResult,
+  IPolicySearchCriteria,
+  IPolicySearchResult,
+  IPolicyExport,
+  IPolicyImportResult,
+  IPolicyAnalysisResult,
+  IConditionOperator,
+  IPolicyMetrics,
+  PolicyEffect,
+} from './types';
