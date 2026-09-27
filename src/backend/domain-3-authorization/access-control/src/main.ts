@@ -1,152 +1,559 @@
 /**
  * Access Control Service - Implementation
- * Resource-based access control with context-aware decision making
+ * Resource-based access control with RBAC and ABAC support
  */
 
 import { randomBytes } from 'crypto';
 import type {
-  ResourceType,
-  ActionType,
-  AccessDecision,
   IAccessContext,
-  IResource,
+  IAccessDecision,
   IAccessPolicy,
-  IPrincipal,
-  ICondition,
-  IAccessControlDecision,
-  IAccessRequest,
-  IAccessGrant,
-  IAccessRevocation,
+  IResource,
+  IOwnershipCheck,
+  IGroupAccess,
+  IDelegatedAccess,
   IAccessAuditEntry,
   IAccessStats,
-  IPolicyEvaluationResult,
+  IFilteredResult,
+  IBulkAccessRequest,
+  IBulkAccessResult,
+  IAccessCacheEntry,
+  IPolicyEvaluationContext,
   IResourceAccessMatrix,
-  IAccessControlEvent,
-  AccessControlListener,
-  IAccessControlConfig,
+  IAccessRule,
+  IAccessEvent,
+  AccessListener,
   IPolicyConflict,
+  IAccessControlConfig,
   ICreatePolicyRequest,
   IUpdatePolicyRequest,
-  IBulkAccessGrantRequest,
-  IBulkAccessRevocationRequest,
+  IUpdateDelegationRequest,
   IAccessEvaluationResult,
-  IResourceOwner,
-  IAccessDelegation,
-  IApprovalWorkflow,
-  IAccessApprovalRequest,
-  IBulkOperationResult,
+  IAttributeContext,
+  AccessEffect,
+  IAccessCondition,
 } from './types';
 
 /**
- * Access Control Service - Manages resource-based access control
+ * Access Control Service - Manages resource access control
  */
 export class AccessControlService {
   private policies: Map<string, IAccessPolicy>;
-  private grants: Map<string, IAccessGrant>;
-  private revocations: Map<string, IAccessRevocation>;
-  private delegations: Map<string, IAccessDelegation>;
-  private approvals: Map<string, IAccessApprovalRequest>;
   private resources: Map<string, IResource>;
-  private resourceOwners: Map<string, IResourceOwner>;
-  private listeners: Set<AccessControlListener>;
+  private delegations: Map<string, IDelegatedAccess>;
   private auditLog: IAccessAuditEntry[];
+  private accessCache: Map<string, IAccessCacheEntry>;
+  private listeners: Set<AccessListener>;
   private stats: IAccessStats;
   private config: IAccessControlConfig;
-  private evaluationCache: Map<string, IAccessControlDecision>;
+
+  // Dependencies (injected)
+  private roleService: any;
+  private permissionService: any;
 
   constructor(config: IAccessControlConfig) {
     this.validateConfig(config);
     this.config = config;
     this.policies = new Map();
-    this.grants = new Map();
-    this.revocations = new Map();
-    this.delegations = new Map();
-    this.approvals = new Map();
     this.resources = new Map();
-    this.resourceOwners = new Map();
-    this.listeners = new Set();
+    this.delegations = new Map();
     this.auditLog = [];
-    this.evaluationCache = new Map();
+    this.accessCache = new Map();
+    this.listeners = new Set();
     this.stats = {
-      totalRequests: 0,
-      allowedRequests: 0,
-      deniedRequests: 0,
-      totalPolicies: 0,
-      activePolicies: 0,
-      totalGrants: 0,
-      activeGrants: 0,
+      totalDecisions: 0,
+      allowedDecisions: 0,
+      deniedDecisions: 0,
       averageEvaluationTime: 0,
-      requestsByResource: {},
-      requestsByAction: {},
-      allowDenyRatio: 0,
+      policiesApplied: {},
+      resourceTypes: {},
+      actions: {},
+      topDenialReasons: [],
       errors: 0,
     };
   }
 
   /**
-   * Validate service configuration
+   * Set role service dependency
+   */
+  setRoleService(roleService: any): this {
+    this.roleService = roleService;
+    return this;
+  }
+
+  /**
+   * Set permission service dependency
+   */
+  setPermissionService(permissionService: any): this {
+    this.permissionService = permissionService;
+    return this;
+  }
+
+  /**
+   * Validate configuration
    */
   private validateConfig(config: IAccessControlConfig): void {
     if (!config) {
       throw new Error('Access control configuration is required');
     }
-    if (config.evaluationTimeout < 100) {
-      throw new Error('evaluationTimeout must be at least 100ms');
+    if (config.cacheTimeout < 1000) {
+      throw new Error('cacheTimeout must be at least 1000ms');
     }
-    if (config.cacheTtl < 1000) {
-      throw new Error('cacheTtl must be at least 1000ms');
+    if (config.maxPolicies < 10) {
+      throw new Error('maxPolicies must be at least 10');
     }
   }
 
   /**
-   * Create access control policy
+   * Check access for a user to perform an action on a resource
+   */
+  async checkAccess(context: IAccessContext): Promise<IAccessDecision> {
+    const startTime = Date.now();
+
+    try {
+      // Check cache
+      const cacheKey = this.generateCacheKey(context);
+      const cached = this.accessCache.get(cacheKey);
+      if (cached && cached.expiresAt > new Date()) {
+        return cached.decision;
+      }
+
+      // Evaluate policies
+      const decision = await this.evaluateAccessPolicies(context);
+
+      // Update statistics
+      this.stats.totalDecisions++;
+      if (decision.allowed) {
+        this.stats.allowedDecisions++;
+      } else {
+        this.stats.deniedDecisions++;
+      }
+
+      // Update resource type stats
+      this.stats.resourceTypes[context.resource] =
+        (this.stats.resourceTypes[context.resource] || 0) + 1;
+
+      // Update action stats
+      this.stats.actions[context.action] = (this.stats.actions[context.action] || 0) + 1;
+
+      // Cache decision
+      if (this.config.enableCaching) {
+        this.cacheDecision(cacheKey, decision);
+      }
+
+      // Audit
+      if (this.config.enableAuiting) {
+        this.auditAccess(context, decision);
+      }
+
+      // Emit event
+      this.emitEvent('decision_made', {
+        userId: context.userId,
+        resourceId: context.resourceId,
+        allowed: decision.allowed,
+      });
+
+      return decision;
+    } catch (err) {
+      this.stats.errors++;
+      const decision: IAccessDecision = {
+        allowed: this.config.defaultDeny ? false : true,
+        effect: 'deny',
+        reason: 'Error evaluating access',
+        evaluatedAt: new Date(),
+      };
+      return decision;
+    }
+  }
+
+  /**
+   * Evaluate all applicable policies for a context
+   */
+  private async evaluateAccessPolicies(
+    context: IAccessContext
+  ): Promise<IAccessDecision> {
+    let allowDecision: IAccessDecision | null = null;
+    let denyDecision: IAccessDecision | null = null;
+    const appliedConditions: string[] = [];
+
+    // Get user roles and permissions
+    const userRoles = await this.getUserRoles(context.userId);
+    const userPermissions = await this.getUserPermissions(context.userId);
+    const isOwner = await this.checkOwnership(context.userId, context.resourceId);
+    const groupAccess = await this.checkGroupAccess(context.userId, context.resourceId);
+
+    // Evaluate each policy
+    const sortedPolicies = Array.from(this.policies.values()).sort(
+      (a, b) => b.priority - a.priority
+    );
+
+    for (const policy of sortedPolicies) {
+      if (!policy.isActive) continue;
+
+      // Check if policy applies to this resource and action
+      if (!this.policyAppliesToContext(policy, context)) {
+        continue;
+      }
+
+      // Check if user is subject of this policy
+      if (!this.userIsSubject(context.userId, policy, userRoles)) {
+        continue;
+      }
+
+      // Evaluate conditions
+      const conditionsMet = await this.evaluateConditions(
+        policy.conditions || [],
+        {
+          policy,
+          context,
+          userRoles,
+          userPermissions,
+          isOwner,
+          groupAccess,
+        }
+      );
+
+      if (!conditionsMet) {
+        continue;
+      }
+
+      appliedConditions.push(`${policy.name} (${policy.policyId})`);
+
+      // Track which policies were applied
+      this.stats.policiesApplied[policy.name] =
+        (this.stats.policiesApplied[policy.name] || 0) + 1;
+
+      // Handle policy effect
+      if (policy.effect === 'allow') {
+        allowDecision = {
+          allowed: true,
+          effect: 'allow',
+          matchedPolicy: policy.policyId,
+          appliedConditions,
+          evaluatedAt: new Date(),
+        };
+      } else if (policy.effect === 'deny') {
+        denyDecision = {
+          allowed: false,
+          effect: 'deny',
+          reason: `Access denied by policy: ${policy.name}`,
+          matchedPolicy: policy.policyId,
+          appliedConditions,
+          evaluatedAt: new Date(),
+        };
+        // Deny takes precedence
+        return denyDecision;
+      }
+    }
+
+    // Return decision (deny wins, then allow, then default)
+    if (denyDecision) {
+      return denyDecision;
+    }
+
+    if (allowDecision) {
+      return allowDecision;
+    }
+
+    // Default decision
+    return {
+      allowed: !this.config.defaultDeny,
+      effect: this.config.defaultDeny ? 'deny' : 'allow',
+      reason: `Default ${this.config.defaultDeny ? 'deny' : 'allow'} applied`,
+      evaluatedAt: new Date(),
+    };
+  }
+
+  /**
+   * Check if policy applies to the context
+   */
+  private policyAppliesToContext(policy: IAccessPolicy, context: IAccessContext): boolean {
+    // Check resource
+    const resourceMatch =
+      policy.resources.includes('*') ||
+      policy.resources.includes(context.resource) ||
+      policy.resources.includes(context.resourceId || '');
+
+    if (!resourceMatch) return false;
+
+    // Check action
+    const actionMatch =
+      policy.actions.includes('*') || policy.actions.includes(context.action);
+
+    return actionMatch;
+  }
+
+  /**
+   * Check if user is subject of policy
+   */
+  private userIsSubject(
+    userId: string,
+    policy: IAccessPolicy,
+    userRoles: string[]
+  ): boolean {
+    return (
+      policy.subjects.includes('*') ||
+      policy.subjects.includes(userId) ||
+      userRoles.some(role => policy.subjects.includes(role))
+    );
+  }
+
+  /**
+   * Evaluate policy conditions
+   */
+  private async evaluateConditions(
+    conditions: IAccessCondition[],
+    evalContext: IPolicyEvaluationContext
+  ): Promise<boolean> {
+    if (conditions.length === 0) {
+      return true;
+    }
+
+    // All conditions must be true (AND logic)
+    for (const condition of conditions) {
+      const result = await this.evaluateCondition(condition, evalContext);
+      if (!result) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Evaluate single condition
+   */
+  private async evaluateCondition(
+    condition: IAccessCondition,
+    evalContext: IPolicyEvaluationContext
+  ): Promise<boolean> {
+    let result = false;
+
+    switch (condition.type) {
+      case 'role':
+        result = evalContext.userRoles.some(role =>
+          this.matchCondition(condition.operator, role, condition.value)
+        );
+        break;
+
+      case 'permission':
+        result = evalContext.userPermissions.some(perm =>
+          this.matchCondition(condition.operator, perm, condition.value)
+        );
+        break;
+
+      case 'ownership':
+        result = evalContext.isOwner;
+        break;
+
+      case 'group':
+        result = !!evalContext.groupAccess?.hasAccess;
+        break;
+
+      case 'time':
+        result = this.matchTimeCondition(condition.value as Date);
+        break;
+
+      case 'ip':
+        result = this.matchIPCondition(evalContext.context.ipAddress, condition.value);
+        break;
+
+      case 'custom':
+        result = await this.evaluateCustomCondition(condition, evalContext);
+        break;
+
+      default:
+        result = false;
+    }
+
+    return condition.negate ? !result : result;
+  }
+
+  /**
+   * Match condition operator
+   */
+  private matchCondition(
+    operator: string,
+    actual: unknown,
+    expected: unknown
+  ): boolean {
+    switch (operator) {
+      case 'eq':
+        return actual === expected;
+      case 'neq':
+        return actual !== expected;
+      case 'in':
+        return Array.isArray(expected) && expected.includes(actual);
+      case 'not_in':
+        return !Array.isArray(expected) || !expected.includes(actual);
+      case 'starts_with':
+        return String(actual).startsWith(String(expected));
+      case 'ends_with':
+        return String(actual).endsWith(String(expected));
+      case 'contains':
+        return String(actual).includes(String(expected));
+      case 'gt':
+        return Number(actual) > Number(expected);
+      case 'lt':
+        return Number(actual) < Number(expected);
+      case 'gte':
+        return Number(actual) >= Number(expected);
+      case 'lte':
+        return Number(actual) <= Number(expected);
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * Match time condition
+   */
+  private matchTimeCondition(timeValue: Date): boolean {
+    const now = new Date();
+    return now < timeValue;
+  }
+
+  /**
+   * Match IP condition
+   */
+  private matchIPCondition(actualIP: string | undefined, expectedIP: unknown): boolean {
+    if (!actualIP) return false;
+    if (expectedIP === '*') return true;
+    if (Array.isArray(expectedIP)) {
+      return expectedIP.includes(actualIP);
+    }
+    return actualIP === expectedIP;
+  }
+
+  /**
+   * Evaluate custom condition
+   */
+  private async evaluateCustomCondition(
+    condition: IAccessCondition,
+    evalContext: IPolicyEvaluationContext
+  ): Promise<boolean> {
+    // Placeholder for custom condition evaluation
+    return true;
+  }
+
+  /**
+   * Get user roles
+   */
+  private async getUserRoles(userId: string): Promise<string[]> {
+    if (!this.roleService) return [];
+
+    try {
+      const userRoles = await this.roleService.getUserRoles(userId);
+      return userRoles?.roles?.map((r: any) => r.roleId) || [];
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Get user permissions
+   */
+  private async getUserPermissions(userId: string): Promise<string[]> {
+    if (!this.permissionService) return [];
+
+    try {
+      const summary = await this.permissionService.getUserPermissionsSummary(userId);
+      return summary?.permissions?.map((p: any) => p.permissionId) || [];
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Check resource ownership
+   */
+  async checkOwnership(userId: string, resourceId?: string): Promise<boolean> {
+    if (!resourceId) return false;
+
+    const resource = this.resources.get(resourceId);
+    return resource ? resource.ownerId === userId : false;
+  }
+
+  /**
+   * Check group access
+   */
+  private async checkGroupAccess(userId: string, resourceId?: string): Promise<IGroupAccess | null> {
+    if (!resourceId) return null;
+
+    const resource = this.resources.get(resourceId);
+    if (!resource || !resource.groupId) return null;
+
+    const userRoles = await this.getUserRoles(userId);
+    const userPermissions = await this.getUserPermissions(userId);
+
+    return {
+      hasAccess: userRoles.length > 0 || userPermissions.length > 0,
+      groupId: resource.groupId,
+      userId,
+      roles: userRoles,
+      permissions: userPermissions,
+    };
+  }
+
+  /**
+   * Check access for resource
+   */
+  async checkResourceAccess(
+    userId: string,
+    resourceId: string,
+    action: string
+  ): Promise<IAccessDecision> {
+    const resource = this.resources.get(resourceId);
+
+    return this.checkAccess({
+      userId,
+      resource: resource?.type || 'custom',
+      resourceId,
+      action,
+      timestamp: new Date(),
+    });
+  }
+
+  /**
+   * Create policy
    */
   async createPolicy(
     request: ICreatePolicyRequest,
     createdBy: string
   ): Promise<IAccessPolicy> {
-    if (!request.name || !request.resource || !request.action || !request.effect) {
-      throw new Error('Policy name, resource, action, and effect are required');
+    if (this.policies.size >= this.config.maxPolicies) {
+      throw new Error(`Max policies limit reached: ${this.config.maxPolicies}`);
     }
 
     const policyId = this.generatePolicyId();
     const policy: IAccessPolicy = {
       policyId,
       name: request.name,
-      description: request.description || '',
-      resource: request.resource,
-      action: request.action,
+      description: request.description,
       effect: request.effect,
-      principals: request.principals || [],
-      conditions: request.conditions || [],
+      resources: request.resources,
+      actions: request.actions,
+      subjects: request.subjects,
+      conditions: request.conditions,
       priority: request.priority ?? 100,
       isActive: true,
       createdAt: new Date(),
       updatedAt: new Date(),
       createdBy,
+      metadata: request.metadata,
     };
 
     this.policies.set(policyId, policy);
-    this.stats.totalPolicies++;
-    this.stats.activePolicies++;
 
-    this.logAudit('policy_created', {
-      policyId,
-      name: policy.name,
-      resource: policy.resource,
-      action: policy.action,
-    });
-
-    this.emitEvent('policy_created', {
-      policyId,
-      details: { name: policy.name, effect: policy.effect },
+    this.emitEvent('access_granted', {
+      details: { policyId, name: request.name },
     });
 
     return policy;
   }
 
   /**
-   * Get policy by ID
+   * Get policy
    */
   async getPolicy(policyId: string): Promise<IAccessPolicy | null> {
     return this.policies.get(policyId) || null;
@@ -165,35 +572,21 @@ export class AccessControlService {
       throw new Error(`Policy not found: ${policyId}`);
     }
 
-    const oldState = { ...policy };
-
     if (request.name !== undefined) policy.name = request.name;
     if (request.description !== undefined) policy.description = request.description;
     if (request.effect !== undefined) policy.effect = request.effect;
-    if (request.principals !== undefined) policy.principals = request.principals;
+    if (request.resources !== undefined) policy.resources = request.resources;
+    if (request.actions !== undefined) policy.actions = request.actions;
+    if (request.subjects !== undefined) policy.subjects = request.subjects;
     if (request.conditions !== undefined) policy.conditions = request.conditions;
     if (request.priority !== undefined) policy.priority = request.priority;
-    if (request.isActive !== undefined) {
-      policy.isActive = request.isActive;
-      if (request.isActive) {
-        this.stats.activePolicies++;
-      } else {
-        this.stats.activePolicies--;
-      }
-    }
+    if (request.isActive !== undefined) policy.isActive = request.isActive;
+    if (request.metadata !== undefined) policy.metadata = request.metadata;
 
     policy.updatedAt = new Date();
 
-    this.logAudit('policy_updated', {
-      policyId,
-      before: oldState,
-      after: policy,
-    });
-
-    this.emitEvent('policy_updated', {
-      policyId,
-      details: { changes: request },
-    });
+    // Invalidate cache
+    this.accessCache.clear();
 
     return policy;
   }
@@ -202,558 +595,153 @@ export class AccessControlService {
    * Delete policy
    */
   async deletePolicy(policyId: string, deletedBy: string): Promise<boolean> {
-    const policy = this.policies.get(policyId);
-    if (!policy) {
-      throw new Error(`Policy not found: ${policyId}`);
+    const deleted = this.policies.delete(policyId);
+
+    if (deleted) {
+      // Invalidate cache
+      this.accessCache.clear();
     }
 
-    this.policies.delete(policyId);
-    this.stats.totalPolicies--;
-    if (policy.isActive) this.stats.activePolicies--;
-
-    this.logAudit('policy_deleted', {
-      policyId,
-      name: policy.name,
-    });
-
-    this.emitEvent('policy_deleted', {
-      policyId,
-    });
-
-    return true;
+    return deleted;
   }
 
   /**
-   * Evaluate access control decision
+   * Get all policies
    */
-  async evaluateAccess(request: IAccessRequest): Promise<IAccessEvaluationResult> {
-    const startTime = Date.now();
-    const cacheKey = this.generateCacheKey(request);
-
-    // Check cache
-    if (this.config.enableCaching) {
-      const cached = this.evaluationCache.get(cacheKey);
-      if (cached) {
-        const endTime = Date.now();
-        return {
-          userId: request.userId,
-          resource: request.resource,
-          action: request.action,
-          allowed: cached.decision === 'allow',
-          evaluatedPolicies: [],
-          evaluationTime: endTime - startTime,
-          cacheHit: true,
-        };
-      }
-    }
-
-    const evaluatedPolicies: IPolicyEvaluationResult[] = [];
-    let allowed = false;
-
-    // Get applicable policies
-    const applicablePolicies = this.getApplicablePolicies(
-      request.resource,
-      request.action
-    );
-
-    // Evaluate each policy
-    for (const policy of applicablePolicies) {
-      const result = this.evaluatePolicy(policy, request);
-      evaluatedPolicies.push(result);
-
-      if (result.matched && result.effect === 'allow') {
-        allowed = true;
-        break;
-      }
-
-      if (result.matched && result.effect === 'deny') {
-        allowed = false;
-        break;
-      }
-    }
-
-    const endTime = Date.now();
-    const evaluationTime = endTime - startTime;
-
-    // Update stats
-    this.stats.totalRequests++;
-    this.updateRequestStats(request.resource, request.action);
-    if (allowed) {
-      this.stats.allowedRequests++;
-    } else {
-      this.stats.deniedRequests++;
-    }
-    this.stats.allowDenyRatio =
-      this.stats.deniedRequests > 0
-        ? this.stats.allowedRequests / this.stats.deniedRequests
-        : this.stats.allowedRequests;
-
-    // Cache result
-    if (this.config.enableCaching) {
-      const decision: IAccessControlDecision = {
-        decision: allowed ? 'allow' : 'deny',
-        evaluatedAt: new Date(),
-        evaluationTime,
-      };
-      this.evaluationCache.set(cacheKey, decision);
-    }
-
-    // Log audit
-    if (this.config.enableAuditLogging) {
-      this.logAccessAudit({
-        userId: request.userId,
-        resource: request.resource,
-        resourceId: request.resourceId,
-        action: request.action,
-        allowed,
-        evaluatedPolicies,
-        evaluationTime,
-      });
-    }
-
-    return {
-      userId: request.userId,
-      resource: request.resource,
-      action: request.action,
-      allowed,
-      evaluatedPolicies,
-      evaluationTime,
-      cacheHit: false,
-    };
+  async getAllPolicies(): Promise<IAccessPolicy[]> {
+    return Array.from(this.policies.values());
   }
 
   /**
-   * Get policies for resource and action
+   * Register resource
    */
-  private getApplicablePolicies(
-    resource: ResourceType,
-    action: ActionType
-  ): IAccessPolicy[] {
-    const applicable: IAccessPolicy[] = [];
-
-    for (const policy of this.policies.values()) {
-      if (policy.isActive && policy.resource === resource && policy.action === action) {
-        applicable.push(policy);
-      }
-    }
-
-    // Sort by priority (higher priority first)
-    return applicable.sort((a, b) => b.priority - a.priority);
+  async registerResource(resource: IResource): Promise<void> {
+    this.resources.set(resource.resourceId, resource);
   }
 
   /**
-   * Evaluate single policy
+   * Get resource
    */
-  private evaluatePolicy(
-    policy: IAccessPolicy,
-    request: IAccessRequest
-  ): IPolicyEvaluationResult {
-    const startTime = Date.now();
-
-    // Check principals
-    const principalMatched = this.evaluatePrincipals(
-      policy.principals,
-      request.userId,
-      request.context?.userRoles || []
-    );
-
-    if (!principalMatched) {
-      return {
-        policyId: policy.policyId,
-        policyName: policy.name,
-        matched: false,
-        effect: policy.effect,
-        conditionsMet: false,
-        principalMatched: false,
-        evaluationTime: Date.now() - startTime,
-      };
-    }
-
-    // Check conditions
-    const conditionsMet = this.evaluateConditions(
-      policy.conditions || [],
-      request.context || {}
-    );
-
-    const matched = principalMatched && conditionsMet;
-
-    return {
-      policyId: policy.policyId,
-      policyName: policy.name,
-      matched,
-      effect: policy.effect,
-      conditionsMet,
-      principalMatched,
-      evaluationTime: Date.now() - startTime,
-    };
+  async getResource(resourceId: string): Promise<IResource | null> {
+    return this.resources.get(resourceId) || null;
   }
 
   /**
-   * Evaluate principals
+   * Filter resources by access
    */
-  private evaluatePrincipals(
-    principals: IPrincipal[],
+  async filterResourcesByAccess<T extends IResource>(
     userId: string,
-    userRoles: string[]
-  ): boolean {
-    if (principals.length === 0) return true;
+    resources: T[],
+    action: string
+  ): Promise<IFilteredResult<T>> {
+    const filtered: T[] = [];
 
-    for (const principal of principals) {
-      if (principal.principalType === 'user' && principal.principalId === userId) {
-        return true;
-      }
-      if (principal.principalType === 'role' && userRoles.includes(principal.principalId)) {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
-  /**
-   * Evaluate conditions
-   */
-  private evaluateConditions(
-    conditions: ICondition[],
-    context: IAccessContext
-  ): boolean {
-    if (conditions.length === 0) return true;
-
-    for (const condition of conditions) {
-      if (!this.evaluateCondition(condition, context)) {
-        return false;
+    for (const resource of resources) {
+      const decision = await this.checkResourceAccess(userId, resource.resourceId, action);
+      if (decision.allowed) {
+        filtered.push(resource);
       }
     }
 
-    return true;
+    return {
+      items: filtered,
+      total: resources.length,
+      filtered: filtered.length,
+    };
   }
 
   /**
-   * Evaluate single condition
+   * Create delegation
    */
-  private evaluateCondition(condition: ICondition, context: IAccessContext): boolean {
-    switch (condition.conditionType) {
-      case 'ip':
-        return this.evaluateIpCondition(condition, context.ipAddress);
-      case 'time':
-        return this.evaluateTimeCondition(condition);
-      case 'department':
-        return this.evaluateDepartmentCondition(condition, context.metadata?.department);
-      default:
-        return true;
-    }
-  }
-
-  /**
-   * Evaluate IP condition
-   */
-  private evaluateIpCondition(condition: ICondition, ip?: string): boolean {
-    if (!ip) return false;
-
-    switch (condition.operator) {
-      case 'equals':
-        return condition.values.includes(ip);
-      case 'not_equals':
-        return !condition.values.includes(ip);
-      case 'contains':
-        return condition.values.some(v => ip.includes(v));
-      default:
-        return true;
-    }
-  }
-
-  /**
-   * Evaluate time condition
-   */
-  private evaluateTimeCondition(condition: ICondition): boolean {
-    const now = new Date().getHours();
-
-    if (condition.operator === 'in_range' && condition.values.length >= 2) {
-      const start = parseInt(condition.values[0]);
-      const end = parseInt(condition.values[1]);
-      return now >= start && now <= end;
-    }
-
-    return true;
-  }
-
-  /**
-   * Evaluate department condition
-   */
-  private evaluateDepartmentCondition(
-    condition: ICondition,
-    department?: unknown
-  ): boolean {
-    if (!department) return false;
-
-    const deptStr = String(department);
-
-    switch (condition.operator) {
-      case 'equals':
-        return condition.values.includes(deptStr);
-      case 'not_equals':
-        return !condition.values.includes(deptStr);
-      default:
-        return true;
-    }
-  }
-
-  /**
-   * Grant access
-   */
-  async grantAccess(
-    request: IAccessRequest,
+  async createDelegation(
+    from: string,
+    to: string,
+    resource: any,
+    action: string,
     grantedBy: string,
-    expiresAt?: Date,
-    reason?: string
-  ): Promise<IAccessGrant> {
-    const grantId = this.generateGrantId();
-    const grant: IAccessGrant = {
-      grantId,
-      userId: request.userId,
-      resource: request.resource,
-      resourceId: request.resourceId,
-      action: request.action,
+    expiresAt?: Date
+  ): Promise<IDelegatedAccess> {
+    const delegation: IDelegatedAccess = {
+      delegationId: this.generateDelegationId(),
+      from,
+      to,
+      resource: resource.type,
+      resourceId: resource.resourceId,
+      action,
+      expiresAt,
       grantedAt: new Date(),
       grantedBy,
-      expiresAt,
-      reason,
     };
 
-    this.grants.set(grantId, grant);
-    this.stats.totalGrants++;
-    this.stats.activeGrants++;
+    this.delegations.set(delegation.delegationId, delegation);
 
-    this.logAudit('access_granted', {
-      grantId,
-      userId: request.userId,
-      resource: request.resource,
-      action: request.action,
-    });
-
-    this.emitEvent('access_granted', {
-      details: { grantId, userId: request.userId },
-    });
-
-    return grant;
-  }
-
-  /**
-   * Revoke access
-   */
-  async revokeAccess(grantId: string, revokedBy: string, reason?: string): Promise<boolean> {
-    const grant = this.grants.get(grantId);
-    if (!grant) {
-      throw new Error(`Access grant not found: ${grantId}`);
-    }
-
-    const revocationId = this.generateRevocationId();
-    const revocation: IAccessRevocation = {
-      revocationId,
-      grantId,
-      revokedAt: new Date(),
-      revokedBy,
-      reason,
-    };
-
-    this.revocations.set(revocationId, revocation);
-    this.grants.delete(grantId);
-    this.stats.activeGrants--;
-
-    this.logAudit('access_revoked', {
-      grantId,
-      revocationId,
-      revokedBy,
-    });
-
-    this.emitEvent('access_revoked', {
-      details: { grantId, revocationId },
-    });
-
-    return true;
-  }
-
-  /**
-   * Create access delegation
-   */
-  async delegateAccess(
-    userId: string,
-    toUserId: string,
-    resource: ResourceType,
-    action: ActionType,
-    delegatedBy: string,
-    expiresAt?: Date,
-    canRedelegate: boolean = false
-  ): Promise<IAccessDelegation> {
-    const delegationId = this.generateDelegationId();
-    const delegation: IAccessDelegation = {
-      delegationId,
-      fromUserId: userId,
-      toUserId,
-      resource,
-      action,
-      delegatedAt: new Date(),
-      expiresAt,
-      canRedelegate,
-    };
-
-    this.delegations.set(delegationId, delegation);
-
-    this.logAudit('access_delegated', {
-      delegationId,
-      fromUserId: userId,
-      toUserId,
-      resource,
-      action,
+    this.emitEvent('delegation_created', {
+      details: { from, to, resource: resource.type },
     });
 
     return delegation;
   }
 
   /**
-   * Get grants for user
-   */
-  async getUserGrants(userId: string): Promise<IAccessGrant[]> {
-    const userGrants: IAccessGrant[] = [];
-
-    for (const grant of this.grants.values()) {
-      if (grant.userId === userId) {
-        userGrants.push(grant);
-      }
-    }
-
-    return userGrants;
-  }
-
-  /**
    * Get delegations for user
    */
-  async getUserDelegations(userId: string): Promise<IAccessDelegation[]> {
-    const userDelegations: IAccessDelegation[] = [];
+  async getDelegations(userId: string): Promise<IDelegatedAccess[]> {
+    const delegations: IDelegatedAccess[] = [];
 
     for (const delegation of this.delegations.values()) {
-      if (delegation.toUserId === userId) {
-        userDelegations.push(delegation);
+      if (delegation.to === userId && (!delegation.expiresAt || delegation.expiresAt > new Date())) {
+        delegations.push(delegation);
       }
     }
 
-    return userDelegations;
+    return delegations;
   }
 
   /**
-   * Get all policies
+   * Revoke delegation
    */
-  async getAllPolicies(resource?: ResourceType, action?: ActionType): Promise<IAccessPolicy[]> {
-    const policies: IAccessPolicy[] = [];
-
-    for (const policy of this.policies.values()) {
-      if (
-        (!resource || policy.resource === resource) &&
-        (!action || policy.action === action)
-      ) {
-        policies.push(policy);
-      }
-    }
-
-    return policies.sort((a, b) => b.priority - a.priority);
+  async revokeDelegation(delegationId: string, revokedBy: string): Promise<boolean> {
+    return this.delegations.delete(delegationId);
   }
 
   /**
-   * Get resource access matrix for user
+   * Bulk check access
    */
-  async getResourceAccessMatrix(userId: string, userRoles: string[] = []): Promise<IResourceAccessMatrix> {
-    const resourceTypes: ResourceType[] = [
-      'alert',
-      'case',
-      'investigation',
-      'report',
-      'dashboard',
-      'configuration',
-      'user',
-      'role',
-      'permission',
-      'system',
-    ];
-    const actionTypes: ActionType[] = ['read', 'write', 'delete', 'create', 'update', 'manage'];
+  async bulkCheckAccess(request: IBulkAccessRequest): Promise<IBulkAccessResult> {
+    const results = [];
 
-    const matrix: IResourceAccessMatrix = {
-      userId,
-      resources: [],
-      totalResources: 0,
-      totalActions: 0,
-    };
+    for (const userId of request.userIds) {
+      let allowed = false;
+      let reason: string | undefined;
 
-    for (const resource of resourceTypes) {
-      const actions: ActionType[] = [];
-      let canRead = false;
-      let canWrite = false;
-      let canDelete = false;
-      let canManage = false;
-
-      for (const action of actionTypes) {
-        const result = await this.evaluateAccess({
+      for (const resourceId of request.resourceIds || []) {
+        const decision = await this.checkAccess({
           userId,
-          resource,
-          action,
-          context: { userId, userRoles },
+          resource: request.resource,
+          resourceId,
+          action: request.action,
+          timestamp: new Date(),
         });
 
-        if (result.allowed) {
-          actions.push(action);
-
-          if (action === 'read') canRead = true;
-          if (action === 'write') canWrite = true;
-          if (action === 'delete') canDelete = true;
-          if (action === 'manage') canManage = true;
+        if (decision.allowed) {
+          allowed = true;
+          break;
         }
       }
 
-      if (actions.length > 0) {
-        matrix.resources.push({
-          resource,
-          actions,
-          canRead,
-          canWrite,
-          canDelete,
-          canManage,
-        });
-        matrix.totalResources++;
-        matrix.totalActions += actions.length;
-      }
+      results.push({
+        userId,
+        allowed,
+        reason,
+      });
     }
 
-    return matrix;
-  }
-
-  /**
-   * Detect policy conflicts
-   */
-  async detectConflicts(): Promise<IPolicyConflict[]> {
-    const conflicts: IPolicyConflict[] = [];
-    const policyArray = Array.from(this.policies.values());
-
-    for (let i = 0; i < policyArray.length; i++) {
-      for (let j = i + 1; j < policyArray.length; j++) {
-        const p1 = policyArray[i];
-        const p2 = policyArray[j];
-
-        if (
-          p1.resource === p2.resource &&
-          p1.action === p2.action &&
-          p1.effect !== p2.effect
-        ) {
-          conflicts.push({
-            policyId1: p1.policyId,
-            policyId2: p2.policyId,
-            conflictType: 'effect',
-            severity: 'high',
-            recommendation: `Conflicting policies: ${p1.name} (${p1.effect}) vs ${p2.name} (${p2.effect})`,
-          });
-        }
-      }
-    }
-
-    return conflicts;
+    return {
+      totalRequested: request.userIds.length,
+      allowedCount: results.filter(r => r.allowed).length,
+      deniedCount: results.filter(r => !r.allowed).length,
+      results,
+    };
   }
 
   /**
@@ -773,7 +761,7 @@ export class AccessControlService {
   /**
    * Register event listener
    */
-  onAccessControl(listener: AccessControlListener): this {
+  onAccess(listener: AccessListener): this {
     this.listeners.add(listener);
     return this;
   }
@@ -781,95 +769,98 @@ export class AccessControlService {
   /**
    * Remove event listener
    */
-  offAccessControl(listener: AccessControlListener): this {
+  offAccess(listener: AccessListener): this {
     this.listeners.delete(listener);
     return this;
   }
 
   /**
-   * Clear evaluation cache
+   * Detect policy conflicts
    */
-  clearCache(): void {
-    this.evaluationCache.clear();
+  async detectConflicts(): Promise<IPolicyConflict[]> {
+    const conflicts: IPolicyConflict[] = [];
+    const policies = Array.from(this.policies.values());
+
+    for (let i = 0; i < policies.length; i++) {
+      for (let j = i + 1; j < policies.length; j++) {
+        const p1 = policies[i];
+        const p2 = policies[j];
+
+        // Check for overlapping resources and actions
+        const resourceOverlap = p1.resources.some(r => p2.resources.includes(r));
+        const actionOverlap = p1.actions.some(a => p2.actions.includes(a));
+
+        if (resourceOverlap && actionOverlap) {
+          if (p1.effect !== p2.effect) {
+            conflicts.push({
+              policy1Id: p1.policyId,
+              policy2Id: p2.policyId,
+              conflictType: 'conflicting_effects',
+              severity: 'high',
+              recommendation: `Review conflicting effects for ${p1.name} and ${p2.name}`,
+            });
+          }
+        }
+      }
+    }
+
+    return conflicts;
   }
 
   /**
    * Private helper methods
    */
 
-  private generatePolicyId(): string {
-    return `pol_${randomBytes(8).toString('hex')}`;
+  private generateCacheKey(context: IAccessContext): string {
+    return `access_${context.userId}_${context.resource}_${context.action}_${context.resourceId || 'all'}`;
   }
 
-  private generateGrantId(): string {
-    return `grt_${randomBytes(8).toString('hex')}`;
+  private cacheDecision(key: string, decision: IAccessDecision): void {
+    const expiresAt = new Date(Date.now() + this.config.cacheTimeout);
+    this.accessCache.set(key, { key, decision, timestamp: new Date(), expiresAt });
+
+    if (this.accessCache.size > this.config.maxCacheSize) {
+      const oldest = Array.from(this.accessCache.values()).sort(
+        (a, b) => a.timestamp.getTime() - b.timestamp.getTime()
+      )[0];
+      this.accessCache.delete(oldest.key);
+    }
   }
 
-  private generateRevocationId(): string {
-    return `rev_${randomBytes(8).toString('hex')}`;
-  }
-
-  private generateDelegationId(): string {
-    return `del_${randomBytes(8).toString('hex')}`;
-  }
-
-  private generateCacheKey(request: IAccessRequest): string {
-    return `${request.userId}:${request.resource}:${request.action}:${request.resourceId || '*'}`;
-  }
-
-  private updateRequestStats(resource: ResourceType, action: ActionType): void {
-    const rt = this.stats.requestsByResource as Record<ResourceType, number>;
-    rt[resource] = (rt[resource] || 0) + 1;
-
-    const at = this.stats.requestsByAction as Record<ActionType, number>;
-    at[action] = (at[action] || 0) + 1;
-  }
-
-  private logAudit(action: string, details: Record<string, unknown>): void {
-    const auditId = `aud_${randomBytes(8).toString('hex')}`;
-    const entry: Partial<IAccessAuditEntry> = {
-      auditId,
-      action: action as any,
-      timestamp: new Date(),
-      metadata: details,
-    };
-    this.auditLog.push(entry as IAccessAuditEntry);
-  }
-
-  private logAccessAudit(details: {
-    userId: string;
-    resource: ResourceType;
-    resourceId?: string;
-    action: ActionType;
-    allowed: boolean;
-    evaluatedPolicies: IPolicyEvaluationResult[];
-    evaluationTime: number;
-  }): void {
-    const auditId = `aud_${randomBytes(8).toString('hex')}`;
+  private auditAccess(context: IAccessContext, decision: IAccessDecision): void {
     const entry: IAccessAuditEntry = {
-      auditId,
-      action: details.allowed ? 'access_granted' : 'access_denied',
-      userId: details.userId,
-      resource: details.resource,
-      resourceId: details.resourceId,
-      actionType: details.action,
-      decision: details.allowed ? 'allow' : 'deny',
+      entryId: this.generateAuditId(),
+      userId: context.userId,
+      resource: context.resource,
+      resourceId: context.resourceId,
+      action: context.action,
+      allowed: decision.allowed,
+      denialReason: decision.reason,
       timestamp: new Date(),
-      evaluationTime: details.evaluationTime,
-      metadata: {
-        policiesEvaluated: details.evaluatedPolicies.length,
-      },
+      context,
     };
+
     this.auditLog.push(entry);
   }
 
-  private async emitEvent(
-    type: IAccessControlEvent['type'],
-    details?: Record<string, unknown>
-  ): Promise<void> {
-    const event: IAccessControlEvent = {
+  private generatePolicyId(): string {
+    return `policy_${randomBytes(8).toString('hex')}`;
+  }
+
+  private generateDelegationId(): string {
+    return `delegation_${randomBytes(8).toString('hex')}`;
+  }
+
+  private generateAuditId(): string {
+    return `audit_${randomBytes(8).toString('hex')}`;
+  }
+
+  private async emitEvent(type: IAccessEvent['type'], details?: Record<string, unknown>): Promise<void> {
+    const event: IAccessEvent = {
       type,
       timestamp: new Date(),
+      userId: details?.userId as string,
+      resourceId: details?.resourceId as string,
       details,
     };
 

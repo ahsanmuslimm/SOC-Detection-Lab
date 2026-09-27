@@ -1,71 +1,44 @@
 /**
  * Access Control Service - Type Definitions
- * Resource-based access control with context-aware decision making
+ * Type definitions for resource-based access control (RBAC/ABAC)
  */
 
 /**
- * Resource type enumeration
+ * Access effect type
  */
-export type ResourceType =
-  | 'alert'
-  | 'case'
-  | 'investigation'
-  | 'report'
-  | 'dashboard'
-  | 'configuration'
-  | 'user'
-  | 'role'
-  | 'permission'
-  | 'system'
-  | 'custom';
+export type AccessEffect = 'allow' | 'deny' | 'conditional';
 
 /**
- * Action type enumeration
+ * Resource type
  */
-export type ActionType =
-  | 'read'
-  | 'write'
-  | 'delete'
-  | 'create'
-  | 'update'
-  | 'execute'
-  | 'approve'
-  | 'manage'
-  | 'export'
-  | 'share'
-  | 'archive'
-  | 'custom';
+export type ResourceType = 'report' | 'alert' | 'investigation' | 'case' | 'user' | 'system' | 'custom';
 
 /**
- * Access decision type
- */
-export type AccessDecision = 'allow' | 'deny' | 'deny_with_reason';
-
-/**
- * Context information for access decisions
+ * Access context
  */
 export interface IAccessContext {
   userId: string;
-  userRoles?: string[];
-  userPermissions?: string[];
+  resource: ResourceType;
+  resourceId?: string;
+  action: string;
+  timestamp: Date;
   ipAddress?: string;
-  timestamp?: Date;
-  requestId?: string;
+  userAgent?: string;
   metadata?: Record<string, unknown>;
 }
 
 /**
- * Resource information
+ * Access decision
  */
-export interface IResource {
-  resourceId: string;
-  resourceType: ResourceType;
-  ownerId: string;
-  isPublic: boolean;
-  sensitivity: 'public' | 'internal' | 'confidential' | 'restricted';
-  department?: string;
-  tags?: string[];
-  metadata?: Record<string, unknown>;
+export interface IAccessDecision {
+  allowed: boolean;
+  effect: AccessEffect;
+  reason?: string;
+  denialReasons?: string[];
+  matchedPolicy?: string;
+  appliedConditions?: string[];
+  evaluatedAt: Date;
+  expiration?: Date;
 }
 
 /**
@@ -75,203 +48,244 @@ export interface IAccessPolicy {
   policyId: string;
   name: string;
   description: string;
-  resource: ResourceType;
-  action: ActionType;
-  effect: 'allow' | 'deny';
-  principals: IPrincipal[];
-  conditions?: ICondition[];
+  effect: AccessEffect;
+  resources: ResourceType[] | string[];
+  actions: string[];
+  subjects: string[];
+  conditions?: IAccessCondition[];
   priority: number;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
   createdBy: string;
+  metadata?: Record<string, unknown>;
 }
 
 /**
- * Principal (user, role, group)
+ * Access condition for policies
  */
-export interface IPrincipal {
-  principalType: 'user' | 'role' | 'group';
-  principalId: string;
+export interface IAccessCondition {
+  type: 'role' | 'permission' | 'ownership' | 'group' | 'time' | 'ip' | 'custom';
+  operator: 'eq' | 'neq' | 'in' | 'not_in' | 'starts_with' | 'ends_with' | 'contains' | 'gt' | 'lt' | 'gte' | 'lte';
+  value: unknown;
+  negate?: boolean;
 }
 
 /**
- * Policy condition
+ * Resource with ownership
  */
-export interface ICondition {
-  conditionType:
-    | 'time'
-    | 'ip'
-    | 'department'
-    | 'sensitivity'
-    | 'custom';
-  operator: 'equals' | 'not_equals' | 'contains' | 'not_contains' | 'in_range';
-  values: string[];
+export interface IResource {
+  resourceId: string;
+  type: ResourceType;
+  ownerId: string;
+  groupId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  metadata?: Record<string, unknown>;
 }
 
 /**
- * Access control decision
+ * Owner check result
  */
-export interface IAccessControlDecision {
-  decision: AccessDecision;
-  policyId?: string;
-  reason?: string;
-  reasons?: string[];
-  evaluatedAt: Date;
-  evaluationTime: number;
+export interface IOwnershipCheck {
+  isOwner: boolean;
+  ownerId: string;
+  resourceId: string;
+  resourceType: ResourceType;
 }
 
 /**
- * Resource access request
+ * Group access check
  */
-export interface IAccessRequest {
+export interface IGroupAccess {
+  hasAccess: boolean;
+  groupId: string;
   userId: string;
+  roles: string[];
+  permissions: string[];
+}
+
+/**
+ * Delegated access
+ */
+export interface IDelegatedAccess {
+  delegationId: string;
+  from: string;
+  to: string;
   resource: ResourceType;
   resourceId?: string;
-  action: ActionType;
-  context?: IAccessContext;
-}
-
-/**
- * Access grant
- */
-export interface IAccessGrant {
-  grantId: string;
-  userId: string;
-  resource: ResourceType;
-  resourceId?: string;
-  action: ActionType;
+  action: string;
+  expiresAt?: Date;
   grantedAt: Date;
   grantedBy: string;
-  expiresAt?: Date;
-  reason?: string;
-}
-
-/**
- * Access revocation
- */
-export interface IAccessRevocation {
-  revocationId: string;
-  grantId: string;
-  revokedAt: Date;
-  revokedBy: string;
-  reason?: string;
 }
 
 /**
  * Access audit entry
  */
 export interface IAccessAuditEntry {
-  auditId: string;
-  action: 'access_request' | 'access_granted' | 'access_denied' | 'access_revoked' | 'policy_evaluated';
+  entryId: string;
   userId: string;
   resource: ResourceType;
   resourceId?: string;
-  actionType: ActionType;
-  decision: AccessDecision;
-  policyId?: string;
+  action: string;
+  allowed: boolean;
+  denialReason?: string;
   timestamp: Date;
-  evaluationTime?: number;
-  metadata?: Record<string, unknown>;
+  context?: IAccessContext;
 }
 
 /**
  * Access statistics
  */
 export interface IAccessStats {
-  totalRequests: number;
-  allowedRequests: number;
-  deniedRequests: number;
-  totalPolicies: number;
-  activePolicies: number;
-  totalGrants: number;
-  activeGrants: number;
+  totalDecisions: number;
+  allowedDecisions: number;
+  deniedDecisions: number;
   averageEvaluationTime: number;
-  requestsByResource: Record<ResourceType, number>;
-  requestsByAction: Record<ActionType, number>;
-  allowDenyRatio: number;
+  policiesApplied: Record<string, number>;
+  resourceTypes: Record<ResourceType, number>;
+  actions: Record<string, number>;
+  topDenialReasons: string[];
   errors: number;
 }
 
 /**
- * Policy evaluation result
+ * Filtered result
  */
-export interface IPolicyEvaluationResult {
-  policyId: string;
-  policyName: string;
-  matched: boolean;
-  effect: 'allow' | 'deny';
-  conditionsMet: boolean;
-  principalMatched: boolean;
-  evaluationTime: number;
+export interface IFilteredResult<T> {
+  items: T[];
+  total: number;
+  filtered: number;
+}
+
+/**
+ * Bulk access request
+ */
+export interface IBulkAccessRequest {
+  userIds: string[];
+  resource: ResourceType;
+  action: string;
+  resourceIds?: string[];
+}
+
+/**
+ * Bulk access result
+ */
+export interface IBulkAccessResult {
+  totalRequested: number;
+  allowedCount: number;
+  deniedCount: number;
+  results: Array<{
+    userId: string;
+    allowed: boolean;
+    reason?: string;
+  }>;
+}
+
+/**
+ * Cache entry for access decisions
+ */
+export interface IAccessCacheEntry {
+  key: string;
+  decision: IAccessDecision;
+  timestamp: Date;
+  expiresAt: Date;
+}
+
+/**
+ * Policy evaluation context
+ */
+export interface IPolicyEvaluationContext {
+  policy: IAccessPolicy;
+  context: IAccessContext;
+  userRoles: string[];
+  userPermissions: string[];
+  isOwner: boolean;
+  groupAccess?: IGroupAccess;
 }
 
 /**
  * Resource access matrix
  */
 export interface IResourceAccessMatrix {
+  resourceId: string;
+  resourceType: ResourceType;
   userId: string;
-  resources: Array<{
-    resource: ResourceType;
-    actions: ActionType[];
-    canRead: boolean;
-    canWrite: boolean;
-    canDelete: boolean;
-    canManage: boolean;
-  }>;
-  totalResources: number;
-  totalActions: number;
+  permissions: Record<string, boolean>;
+  roles: string[];
+  isDelegated: boolean;
+  isOwner: boolean;
 }
 
 /**
- * Access control event
+ * Access rule
  */
-export interface IAccessControlEvent {
-  type: 'policy_created' | 'policy_updated' | 'policy_deleted' | 'policy_evaluated' | 'access_granted' | 'access_denied' | 'access_revoked' | 'error';
+export interface IAccessRule {
+  ruleId: string;
+  name: string;
+  resource: ResourceType;
+  action: string;
+  allowedRoles: string[];
+  allowedPermissions: string[];
+  conditions?: IAccessCondition[];
+  priority: number;
+  isActive: boolean;
+}
+
+/**
+ * Conditional access token
+ */
+export interface IConditionalAccessToken {
+  tokenId: string;
+  userId: string;
+  resource: ResourceType;
+  resourceId: string;
+  action: string;
+  conditions: IAccessCondition[];
+  issuedAt: Date;
+  expiresAt: Date;
+}
+
+/**
+ * Access event
+ */
+export interface IAccessEvent {
+  type: 'decision_made' | 'access_granted' | 'access_denied' | 'policy_evaluated' | 'delegation_created' | 'audit_logged' | 'error';
   timestamp: Date;
-  policyId?: string;
   userId?: string;
+  resourceId?: string;
   details?: Record<string, unknown>;
 }
 
 /**
- * Access control listener
+ * Access listener callback
  */
-export type AccessControlListener = (event: IAccessControlEvent) => Promise<void> | void;
-
-/**
- * Access control configuration
- */
-export interface IAccessControlConfig {
-  enableCaching: boolean;
-  cacheTtl: number;
-  maxCacheSize: number;
-  enableAuditLogging: boolean;
-  evaluationTimeout: number;
-  defaultEffect: 'allow' | 'deny';
-  enableContextEvaluation: boolean;
-}
+export type AccessListener = (event: IAccessEvent) => Promise<void> | void;
 
 /**
  * Policy conflict
  */
 export interface IPolicyConflict {
-  policyId1: string;
-  policyId2: string;
-  conflictType: 'effect' | 'principals' | 'resources';
+  policy1Id: string;
+  policy2Id: string;
+  conflictType: 'overlapping_resources' | 'conflicting_effects' | 'priority_unclear';
   severity: 'low' | 'medium' | 'high';
   recommendation: string;
 }
 
 /**
- * Resource hierarchy
+ * Access control service configuration
  */
-export interface IResourceHierarchy {
-  resourceId: string;
-  resourceType: ResourceType;
-  parentResourceId?: string;
-  childResources: string[];
-  level: number;
+export interface IAccessControlConfig {
+  enableCaching: boolean;
+  cacheTimeout: number;
+  maxCacheSize: number;
+  enableAuiting: boolean;
+  auditRetention: number;
+  maxPolicies: number;
+  evaluationTimeout: number;
+  defaultDeny: boolean;
 }
 
 /**
@@ -280,12 +294,13 @@ export interface IResourceHierarchy {
 export interface ICreatePolicyRequest {
   name: string;
   description: string;
-  resource: ResourceType;
-  action: ActionType;
-  effect: 'allow' | 'deny';
-  principals: IPrincipal[];
-  conditions?: ICondition[];
+  effect: AccessEffect;
+  resources: ResourceType[] | string[];
+  actions: string[];
+  subjects: string[];
+  conditions?: IAccessCondition[];
   priority?: number;
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -294,107 +309,51 @@ export interface ICreatePolicyRequest {
 export interface IUpdatePolicyRequest {
   name?: string;
   description?: string;
-  effect?: 'allow' | 'deny';
-  principals?: IPrincipal[];
-  conditions?: ICondition[];
+  effect?: AccessEffect;
+  resources?: ResourceType[] | string[];
+  actions?: string[];
+  subjects?: string[];
+  conditions?: IAccessCondition[];
   priority?: number;
   isActive?: boolean;
+  metadata?: Record<string, unknown>;
 }
 
 /**
- * Bulk access grant request
+ * Update delegated access request
  */
-export interface IBulkAccessGrantRequest {
-  userIds: string[];
-  resources: ResourceType[];
-  actions: ActionType[];
-  reason?: string;
+export interface IUpdateDelegationRequest {
   expiresAt?: Date;
+  action?: string;
+  grantedBy?: string;
 }
 
 /**
- * Bulk access revocation request
- */
-export interface IBulkAccessRevocationRequest {
-  grantIds: string[];
-  reason?: string;
-}
-
-/**
- * Access evaluation result
+ * Access result with time metrics
  */
 export interface IAccessEvaluationResult {
-  userId: string;
-  resource: ResourceType;
-  action: ActionType;
-  allowed: boolean;
-  policyId?: string;
-  evaluatedPolicies: IPolicyEvaluationResult[];
-  evaluationTime: number;
+  decision: IAccessDecision;
+  evaluationTimeMs: number;
+  policiesEvaluated: number;
+  conditionsEvaluated: number;
   cacheHit: boolean;
 }
 
 /**
- * Resource owner information
+ * Attribute-based access control context
  */
-export interface IResourceOwner {
-  ownerId: string;
-  ownerType: 'user' | 'department' | 'team';
-  ownerName: string;
-  canDelegate: boolean;
+export interface IAttributeContext {
+  userAttributes: Record<string, unknown>;
+  resourceAttributes: Record<string, unknown>;
+  environmentAttributes: Record<string, unknown>;
 }
 
 /**
- * Access delegation
+ * Policy statement
  */
-export interface IAccessDelegation {
-  delegationId: string;
-  fromUserId: string;
-  toUserId: string;
-  resource: ResourceType;
-  resourceId?: string;
-  action: ActionType;
-  delegatedAt: Date;
-  expiresAt?: Date;
-  canRedelegate: boolean;
-}
-
-/**
- * Approval workflow
- */
-export interface IApprovalWorkflow {
-  workflowId: string;
-  resource: ResourceType;
-  action: ActionType;
-  requiredApprovers: number;
-  approvalTimeout: number;
-  escalationEnabled: boolean;
-}
-
-/**
- * Access approval request
- */
-export interface IAccessApprovalRequest {
-  approvalId: string;
-  userId: string;
-  resource: ResourceType;
-  resourceId?: string;
-  action: ActionType;
-  requestedAt: Date;
-  requiredApprovals: number;
-  currentApprovals: number;
-  status: 'pending' | 'approved' | 'denied' | 'expired';
-}
-
-/**
- * Bulk operation result
- */
-export interface IBulkOperationResult {
-  totalRequested: number;
-  successful: number;
-  failed: number;
-  errors: Array<{
-    itemId: string;
-    error: string;
-  }>;
+export interface IPolicyStatement {
+  effect: AccessEffect;
+  actions: string[];
+  resources: ResourceType[] | string[];
+  conditions?: IAccessCondition[];
 }
