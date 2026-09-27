@@ -1,0 +1,89 @@
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+.tsc-out-dir/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# IDE and Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.iml
+
+# Testing
+coverage/
+.nyc_output/
+*.lcov
+.jest-cache/
+cypress/screenshots/
+cypress/videos/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Node version manager
+.nvmrc
+
+# PM2
+ecosystem-fork.js
+
+# Docker
+.dockerignore
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# ML Models (large files)
+models/
+*.pkl
+*.h5
+*.pt
+
+# Compiled assets
+public/
+
+# Certificate files
+*.pem
+*.key
+*.crt
+
+# Backup files
+*.bak
+*.backup
+
+# Dependencies-related
+pnpm-debug.log
+
+# OS specific
+.env.local.bak
