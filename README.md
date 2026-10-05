@@ -4,25 +4,45 @@ Enterprise-grade Security Operations Center (SOC) detection and incident respons
 
 **Status**: v2 — Final Working Product (all tests passing, production-packaged)
 
-## Quick Start
+## Quick Start (with PostgreSQL)
 
 ```bash
-# 1. Install and run (backend + frontend)
+# 1. Install dependencies
 npm install
-npm run dev
 
-# 2. Open the console
-#    http://localhost:3001 (frontend) → proxied API on http://localhost:3000/api/v1
+# 2. Configure the database
+cp .env.example .env
+# Edit .env — set DATABASE_URL=postgresql://user:pass@localhost:5432/soc_lab
 
-# 3. Sign in with the seeded administrator
+# 3. Create tables + load fixture data
+npm run db:migrate
+npm run db:seed
+
+# 4. Start the backend
+npm run dev:backend
+# → http://localhost:3000/api/v1
+
+# 5. Verify everything works
+npm run smoke-test
+
+# 6. Sign in
 #    admin@soc.local / SecurePassword123!
+```
+
+### Quick Start (in-memory, no database)
+
+```bash
+# Remove / comment out DATABASE_URL from .env — the server falls back to
+# in-memory stores automatically.
+npm install
+npm run dev:backend
 ```
 
 ### One-command Docker stack
 
 ```bash
 docker compose up -d
-bash scripts/smoke-test.sh    # verifies health, login, alerts, cases, RBAC
+bash scripts/smoke-test.sh   # health + login + all 6 entity types
 ```
 
 ## What's Inside (v2)
@@ -30,10 +50,10 @@ bash scripts/smoke-test.sh    # verifies health, login, alerts, cases, RBAC
 | Area | Detail |
 |---|---|
 | REST API | 50+ endpoints under `/api/v1` (alerts, cases, rules, investigations, users, reports, auth, rbac) |
-| Auth | JWT access + refresh tokens, logout revocation, role-based permissions |
+| Auth | JWT access + refresh tokens, bcrypt passwords, session table, refresh-token rotation |
+| Data layer | PostgreSQL repositories for all 8 domain services; graceful in-memory fallback when no DB configured |
 | Frontend | React 18 + TypeScript console: Dashboard, Alerts, Cases, Investigations, Reports, Users, Profile |
 | Tests | 370 automated tests (42 unit + 328 API-contract integration) — all passing |
-| Data | In-memory seeded stores for MVP; PostgreSQL migrations + Redis ship in the compose stack |
 | Packaging | Dockerfile (multi-stage), docker-compose stack, GitHub Actions CI |
 
 ## Commands
@@ -64,20 +84,27 @@ All seeded accounts use the password `SecurePassword123!` — **change them befo
 ```
 src/
   ├── backend/
-  │   ├── index.ts        # server entry point
-  │   ├── api/            # gateway, routes, controllers, middleware
-  │   ├── services/       # orchestrator + in-memory domain services
-  │   └── domain-*/       # module libraries (v3 integration scope)
-  ├── frontend/           # React 18 console (Vite, Tailwind, React Query)
-  └── shared/             # shared types and utilities
+  │   ├── index.ts          # server entry point
+  │   ├── api/              # gateway, routes, controllers, middleware
+  │   ├── services/         # orchestrator + in-memory domain services (fallback)
+  │   ├── database/         # PostgreSQL layer
+  │   │   ├── client.ts     # pg.Pool singleton + isDatabaseConfigured()
+  │   │   └── repositories/ # UserRepository, AuthRepository, AlertRepository,
+  │   │                     # CaseRepository, DetectionRuleRepository,
+  │   │                     # InvestigationRepository, ReportRepository, RBACRepository
+  │   └── domain-*/         # module libraries (v3 integration scope)
+  ├── frontend/             # React 18 console (Vite, Tailwind, React Query)
+  └── shared/               # shared types and utilities
 
 database/
-  ├── migrations/         # raw SQL schema migrations
-  └── seeds/              # seed data
+  ├── migrations/           # 001_init_schema.sql, 002_case_sequence.sql
+  └── seeds/                # SQL seed data
 
 scripts/
-  ├── db-migrate.ts       # idempotent migration runner
-  ├── db-seed.ts          # seed runner
+  ├── db-migrate.ts         # idempotent migration runner (tracks in schema_migrations)
+  ├── db-seed.ts            # bcrypt-hashed fixture data, ON CONFLICT DO NOTHING
+  └── smoke-test.sh         # end-to-end verification (10 checks)
+```
   └── smoke-test.sh       # deployment smoke test
 
 .github/workflows/ci.yml  # lint → type-check → tests → builds → docker
