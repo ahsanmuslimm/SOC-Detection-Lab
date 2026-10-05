@@ -5,6 +5,7 @@
 -- Migration: 001_init_schema.sql
 -- Purpose: Initialize core database schema with all required tables
 -- Tables: 15 core entities for SOC Detection Lab platform
+-- IF NOT EXISTS guards make this idempotent (safe to re-run)
 -- ============================================================================
 
 -- Enable required extensions
@@ -14,8 +15,7 @@ CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 -- ============================================================================
 -- 1. ROLES TABLE
 -- ============================================================================
--- Stores role definitions for RBAC system
-CREATE TABLE roles (
+CREATE TABLE IF NOT EXISTS roles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(100) UNIQUE NOT NULL,
   description TEXT,
@@ -24,19 +24,18 @@ CREATE TABLE roles (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_roles_name ON roles(name);
+CREATE INDEX IF NOT EXISTS idx_roles_name ON roles(name);
 
 -- ============================================================================
 -- 2. USERS TABLE
 -- ============================================================================
--- Stores user accounts for authentication
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   username VARCHAR(255) UNIQUE NOT NULL,
   email VARCHAR(255) UNIQUE NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
   role_id UUID NOT NULL REFERENCES roles(id) ON DELETE RESTRICT,
-  status VARCHAR(50) DEFAULT 'active', -- active, inactive, suspended, deleted
+  status VARCHAR(50) DEFAULT 'active',
   last_login TIMESTAMP,
   failed_login_attempts INT DEFAULT 0,
   locked_until TIMESTAMP,
@@ -45,16 +44,15 @@ CREATE TABLE users (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_users_username ON users(username);
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_role_id ON users(role_id);
-CREATE INDEX idx_users_status ON users(status);
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_role_id ON users(role_id);
+CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
 
 -- ============================================================================
 -- 3. USER SESSIONS TABLE
 -- ============================================================================
--- Stores active user sessions
-CREATE TABLE user_sessions (
+CREATE TABLE IF NOT EXISTS user_sessions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   token_hash VARCHAR(255) UNIQUE NOT NULL,
@@ -65,60 +63,62 @@ CREATE TABLE user_sessions (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_sessions_user_id ON user_sessions(user_id);
-CREATE INDEX idx_sessions_expires_at ON user_sessions(expires_at);
-CREATE INDEX idx_sessions_token_hash ON user_sessions(token_hash);
+CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON user_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON user_sessions(expires_at);
+CREATE INDEX IF NOT EXISTS idx_sessions_token_hash ON user_sessions(token_hash);
 
 -- ============================================================================
 -- 4. AUDIT LOG TABLE
 -- ============================================================================
--- Immutable audit trail of all system activities
-CREATE TABLE audit_logs (
+CREATE TABLE IF NOT EXISTS audit_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   actor_id UUID REFERENCES users(id) ON DELETE SET NULL,
   action VARCHAR(100) NOT NULL,
   resource_type VARCHAR(100),
   resource_id VARCHAR(255),
   details JSONB DEFAULT '{}'::jsonb,
-  status VARCHAR(50) DEFAULT 'success', -- success, failure
+  status VARCHAR(50) DEFAULT 'success',
   error_message TEXT,
   ip_address INET,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_audit_actor_id ON audit_logs(actor_id);
-CREATE INDEX idx_audit_resource ON audit_logs(resource_type, resource_id);
-CREATE INDEX idx_audit_created_at ON audit_logs(created_at);
-CREATE INDEX idx_audit_action ON audit_logs(action);
+CREATE INDEX IF NOT EXISTS idx_audit_actor_id ON audit_logs(actor_id);
+CREATE INDEX IF NOT EXISTS idx_audit_resource ON audit_logs(resource_type, resource_id);
+CREATE INDEX IF NOT EXISTS idx_audit_created_at ON audit_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(action);
 
 -- ============================================================================
 -- 5. DETECTION RULES TABLE
 -- ============================================================================
--- Stores detection rules for threat identification
-CREATE TABLE detection_rules (
+CREATE TABLE IF NOT EXISTS detection_rules (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(255) NOT NULL,
   description TEXT,
-  severity VARCHAR(50) NOT NULL, -- critical, high, medium, low, info
-  status VARCHAR(50) DEFAULT 'draft', -- draft, active, disabled, testing
-  rule_type VARCHAR(100) NOT NULL, -- signature, anomaly, behavioral, etc
-  rule_definition JSONB NOT NULL,
+  severity VARCHAR(50) NOT NULL,
+  status VARCHAR(50) DEFAULT 'draft',
+  rule_type VARCHAR(100) NOT NULL,
+  mitre_technique_id VARCHAR(50),
+  rule_definition JSONB NOT NULL DEFAULT '{}'::jsonb,
   test_data JSONB DEFAULT '[]'::jsonb,
+  metadata JSONB DEFAULT '{}'::jsonb,
+  enabled BOOLEAN DEFAULT TRUE,
+  false_positive_count INT DEFAULT 0,
   created_by_id UUID REFERENCES users(id) ON DELETE SET NULL,
   updated_by_id UUID REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_rules_status ON detection_rules(status);
-CREATE INDEX idx_rules_severity ON detection_rules(severity);
-CREATE INDEX idx_rules_created_at ON detection_rules(created_at);
+CREATE INDEX IF NOT EXISTS idx_rules_status ON detection_rules(status);
+CREATE INDEX IF NOT EXISTS idx_rules_severity ON detection_rules(severity);
+CREATE INDEX IF NOT EXISTS idx_rules_created_at ON detection_rules(created_at);
+CREATE INDEX IF NOT EXISTS idx_rules_enabled ON detection_rules(enabled);
 
 -- ============================================================================
 -- 6. DETECTIONS TABLE
 -- ============================================================================
--- Stores individual detection events from rules
-CREATE TABLE detections (
+CREATE TABLE IF NOT EXISTS detections (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   rule_id UUID NOT NULL REFERENCES detection_rules(id) ON DELETE CASCADE,
   source_ip INET,
@@ -129,55 +129,57 @@ CREATE TABLE detections (
   payload_hash VARCHAR(255),
   matched_data JSONB DEFAULT '{}'::jsonb,
   severity VARCHAR(50),
-  status VARCHAR(50) DEFAULT 'new', -- new, acknowledged, investigating, resolved
+  status VARCHAR(50) DEFAULT 'new',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_detections_rule_id ON detections(rule_id);
-CREATE INDEX idx_detections_source_ip ON detections(source_ip);
-CREATE INDEX idx_detections_destination_ip ON detections(destination_ip);
-CREATE INDEX idx_detections_status ON detections(status);
-CREATE INDEX idx_detections_created_at ON detections(created_at);
+CREATE INDEX IF NOT EXISTS idx_detections_rule_id ON detections(rule_id);
+CREATE INDEX IF NOT EXISTS idx_detections_source_ip ON detections(source_ip);
+CREATE INDEX IF NOT EXISTS idx_detections_destination_ip ON detections(destination_ip);
+CREATE INDEX IF NOT EXISTS idx_detections_status ON detections(status);
+CREATE INDEX IF NOT EXISTS idx_detections_created_at ON detections(created_at);
 
 -- ============================================================================
 -- 7. ALERTS TABLE
 -- ============================================================================
--- Aggregates detections into actionable alerts
-CREATE TABLE alerts (
+CREATE TABLE IF NOT EXISTS alerts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title VARCHAR(255) NOT NULL,
   description TEXT,
-  severity VARCHAR(50) NOT NULL, -- critical, high, medium, low
-  status VARCHAR(50) DEFAULT 'open', -- open, acknowledged, investigating, resolved, closed
+  severity VARCHAR(50) NOT NULL,
+  status VARCHAR(50) DEFAULT 'open',
   alert_type VARCHAR(100) NOT NULL,
   source_system VARCHAR(100),
+  source_ip VARCHAR(50),
+  rule_id VARCHAR(100),
   detection_ids UUID[] DEFAULT '{}',
   assigned_to_id UUID REFERENCES users(id) ON DELETE SET NULL,
   closed_by_id UUID REFERENCES users(id) ON DELETE SET NULL,
   acknowledged_at TIMESTAMP,
   closed_at TIMESTAMP,
+  created_by VARCHAR(255) DEFAULT 'system',
   metadata JSONB DEFAULT '{}'::jsonb,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_alerts_status ON alerts(status);
-CREATE INDEX idx_alerts_severity ON alerts(severity);
-CREATE INDEX idx_alerts_assigned_to ON alerts(assigned_to_id);
-CREATE INDEX idx_alerts_created_at ON alerts(created_at);
+CREATE INDEX IF NOT EXISTS idx_alerts_status ON alerts(status);
+CREATE INDEX IF NOT EXISTS idx_alerts_severity ON alerts(severity);
+CREATE INDEX IF NOT EXISTS idx_alerts_assigned_to ON alerts(assigned_to_id);
+CREATE INDEX IF NOT EXISTS idx_alerts_created_at ON alerts(created_at);
 
 -- ============================================================================
 -- 8. CASES TABLE
 -- ============================================================================
--- Stores investigation cases
-CREATE TABLE cases (
+CREATE TABLE IF NOT EXISTS cases (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   case_number VARCHAR(50) UNIQUE NOT NULL,
   title VARCHAR(255) NOT NULL,
   description TEXT,
   severity VARCHAR(50) NOT NULL,
-  status VARCHAR(50) DEFAULT 'open', -- open, investigating, resolved, closed
-  classification VARCHAR(100), -- malware, unauthorized_access, policy_violation, etc
+  status VARCHAR(50) DEFAULT 'open',
+  priority VARCHAR(50) DEFAULT 'medium',
+  classification VARCHAR(100),
   assigned_to_id UUID REFERENCES users(id) ON DELETE SET NULL,
   created_by_id UUID REFERENCES users(id) ON DELETE SET NULL,
   closed_by_id UUID REFERENCES users(id) ON DELETE SET NULL,
@@ -191,46 +193,46 @@ CREATE TABLE cases (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_cases_status ON cases(status);
-CREATE INDEX idx_cases_severity ON cases(severity);
-CREATE INDEX idx_cases_assigned_to ON cases(assigned_to_id);
-CREATE INDEX idx_cases_case_number ON cases(case_number);
-CREATE INDEX idx_cases_created_at ON cases(created_at);
+CREATE INDEX IF NOT EXISTS idx_cases_status ON cases(status);
+CREATE INDEX IF NOT EXISTS idx_cases_severity ON cases(severity);
+CREATE INDEX IF NOT EXISTS idx_cases_assigned_to ON cases(assigned_to_id);
+CREATE INDEX IF NOT EXISTS idx_cases_case_number ON cases(case_number);
+CREATE INDEX IF NOT EXISTS idx_cases_created_at ON cases(created_at);
 
 -- ============================================================================
 -- 9. INVESTIGATIONS TABLE
 -- ============================================================================
--- Stores investigation timelines and evidence
-CREATE TABLE investigations (
+CREATE TABLE IF NOT EXISTS investigations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   case_id UUID NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
   title VARCHAR(255) NOT NULL,
   description TEXT,
   investigator_id UUID REFERENCES users(id) ON DELETE SET NULL,
-  status VARCHAR(50) DEFAULT 'active', -- active, on_hold, completed
+  status VARCHAR(50) DEFAULT 'active',
   priority INT DEFAULT 1,
   evidence_ids UUID[] DEFAULT '{}',
-  timeline_events JSONB[] DEFAULT '{}',
+  timeline_events JSONB DEFAULT '[]'::jsonb,
   findings TEXT,
   recommendation TEXT,
+  closure_code VARCHAR(100),
+  closure_notes TEXT,
   closed_at TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_investigations_case_id ON investigations(case_id);
-CREATE INDEX idx_investigations_investigator_id ON investigations(investigator_id);
-CREATE INDEX idx_investigations_status ON investigations(status);
+CREATE INDEX IF NOT EXISTS idx_investigations_case_id ON investigations(case_id);
+CREATE INDEX IF NOT EXISTS idx_investigations_investigator_id ON investigations(investigator_id);
+CREATE INDEX IF NOT EXISTS idx_investigations_status ON investigations(status);
 
 -- ============================================================================
 -- 10. EVIDENCE TABLE
 -- ============================================================================
--- Stores evidence artifacts linked to investigations
-CREATE TABLE evidence (
+CREATE TABLE IF NOT EXISTS evidence (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   case_id UUID NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
   investigation_id UUID REFERENCES investigations(id) ON DELETE SET NULL,
-  evidence_type VARCHAR(100) NOT NULL, -- log_file, network_packet, memory_dump, etc
+  evidence_type VARCHAR(100) NOT NULL,
   source_system VARCHAR(100),
   description TEXT,
   file_hash VARCHAR(255),
@@ -242,26 +244,25 @@ CREATE TABLE evidence (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_evidence_case_id ON evidence(case_id);
-CREATE INDEX idx_evidence_investigation_id ON evidence(investigation_id);
-CREATE INDEX idx_evidence_type ON evidence(evidence_type);
+CREATE INDEX IF NOT EXISTS idx_evidence_case_id ON evidence(case_id);
+CREATE INDEX IF NOT EXISTS idx_evidence_investigation_id ON evidence(investigation_id);
+CREATE INDEX IF NOT EXISTS idx_evidence_type ON evidence(evidence_type);
 
 -- ============================================================================
--- 11. REPORTING TABLE
+-- 11. REPORTS TABLE
 -- ============================================================================
--- Stores generated reports
-CREATE TABLE reports (
+CREATE TABLE IF NOT EXISTS reports (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title VARCHAR(255) NOT NULL,
-  report_type VARCHAR(100) NOT NULL, -- incident, threat, dashboard, forensic
-  status VARCHAR(50) DEFAULT 'draft', -- draft, generated, distributed, archived
+  report_type VARCHAR(100) NOT NULL,
+  status VARCHAR(50) DEFAULT 'draft',
   generated_by_id UUID REFERENCES users(id) ON DELETE SET NULL,
   case_ids UUID[] DEFAULT '{}',
   alert_ids UUID[] DEFAULT '{}',
   date_range_start TIMESTAMP,
   date_range_end TIMESTAMP,
   report_data JSONB,
-  file_format VARCHAR(50), -- pdf, html, json, csv
+  file_format VARCHAR(50),
   file_location VARCHAR(500),
   distributed_to VARCHAR(100)[] DEFAULT '{}',
   distributed_at TIMESTAMP,
@@ -269,20 +270,19 @@ CREATE TABLE reports (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_reports_type ON reports(report_type);
-CREATE INDEX idx_reports_status ON reports(status);
-CREATE INDEX idx_reports_created_at ON reports(created_at);
+CREATE INDEX IF NOT EXISTS idx_reports_type ON reports(report_type);
+CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
+CREATE INDEX IF NOT EXISTS idx_reports_created_at ON reports(created_at);
 
 -- ============================================================================
 -- 12. INTEGRATION_LOGS TABLE
 -- ============================================================================
--- Tracks external system integrations
-CREATE TABLE integration_logs (
+CREATE TABLE IF NOT EXISTS integration_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   integration_name VARCHAR(100) NOT NULL,
-  integration_type VARCHAR(100), -- siem, firewall, endpoint, cloud, etc
-  event_type VARCHAR(100), -- sync, export, query, alert
-  status VARCHAR(50) DEFAULT 'success', -- success, failure, partial
+  integration_type VARCHAR(100),
+  event_type VARCHAR(100),
+  status VARCHAR(50) DEFAULT 'success',
   records_processed INT,
   error_message TEXT,
   payload_sample JSONB,
@@ -290,33 +290,31 @@ CREATE TABLE integration_logs (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_integrations_type ON integration_logs(integration_type);
-CREATE INDEX idx_integrations_created_at ON integration_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_integrations_type ON integration_logs(integration_type);
+CREATE INDEX IF NOT EXISTS idx_integrations_created_at ON integration_logs(created_at);
 
 -- ============================================================================
 -- 13. NOTIFICATIONS TABLE
 -- ============================================================================
--- Stores user notifications
-CREATE TABLE notifications (
+CREATE TABLE IF NOT EXISTS notifications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   title VARCHAR(255) NOT NULL,
   message TEXT,
-  notification_type VARCHAR(100), -- alert, case_update, assignment, report
+  notification_type VARCHAR(100),
   related_id VARCHAR(255),
   read_at TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_notifications_user_id ON notifications(user_id);
-CREATE INDEX idx_notifications_read_at ON notifications(read_at);
-CREATE INDEX idx_notifications_created_at ON notifications(created_at);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_read_at ON notifications(read_at);
+CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at);
 
 -- ============================================================================
 -- 14. SYSTEM_CONFIG TABLE
 -- ============================================================================
--- Stores system configuration and feature flags
-CREATE TABLE system_config (
+CREATE TABLE IF NOT EXISTS system_config (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   config_key VARCHAR(255) UNIQUE NOT NULL,
   config_value JSONB NOT NULL,
@@ -327,30 +325,28 @@ CREATE TABLE system_config (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_config_key ON system_config(config_key);
+CREATE INDEX IF NOT EXISTS idx_config_key ON system_config(config_key);
 
 -- ============================================================================
 -- 15. METRICS TABLE
 -- ============================================================================
--- Stores system metrics and performance data
-CREATE TABLE metrics (
+CREATE TABLE IF NOT EXISTS metrics (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   metric_name VARCHAR(100) NOT NULL,
   metric_value NUMERIC(12, 2),
   metric_unit VARCHAR(50),
-  metric_type VARCHAR(50), -- counter, gauge, histogram
+  metric_type VARCHAR(50),
   tags JSONB DEFAULT '{}'::jsonb,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_metrics_name ON metrics(metric_name);
-CREATE INDEX idx_metrics_created_at ON metrics(created_at);
+CREATE INDEX IF NOT EXISTS idx_metrics_name ON metrics(metric_name);
+CREATE INDEX IF NOT EXISTS idx_metrics_created_at ON metrics(created_at);
 
 -- ============================================================================
--- TRIGGERS
+-- TRIGGERS (CREATE OR REPLACE — always idempotent)
 -- ============================================================================
 
--- Update timestamp on user modification
 CREATE OR REPLACE FUNCTION update_user_timestamp()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -359,10 +355,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER user_update_timestamp BEFORE UPDATE ON users
-FOR EACH ROW EXECUTE FUNCTION update_user_timestamp();
+DROP TRIGGER IF EXISTS user_update_timestamp ON users;
+CREATE TRIGGER user_update_timestamp
+  BEFORE UPDATE ON users
+  FOR EACH ROW EXECUTE FUNCTION update_user_timestamp();
 
--- Update timestamp on case modification
 CREATE OR REPLACE FUNCTION update_case_timestamp()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -371,10 +368,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER case_update_timestamp BEFORE UPDATE ON cases
-FOR EACH ROW EXECUTE FUNCTION update_case_timestamp();
+DROP TRIGGER IF EXISTS case_update_timestamp ON cases;
+CREATE TRIGGER case_update_timestamp
+  BEFORE UPDATE ON cases
+  FOR EACH ROW EXECUTE FUNCTION update_case_timestamp();
 
--- Update timestamp on alert modification
 CREATE OR REPLACE FUNCTION update_alert_timestamp()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -383,8 +381,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER alert_update_timestamp BEFORE UPDATE ON alerts
-FOR EACH ROW EXECUTE FUNCTION update_alert_timestamp();
+DROP TRIGGER IF EXISTS alert_update_timestamp ON alerts;
+CREATE TRIGGER alert_update_timestamp
+  BEFORE UPDATE ON alerts
+  FOR EACH ROW EXECUTE FUNCTION update_alert_timestamp();
 
 -- ============================================================================
 -- COMMENTS
