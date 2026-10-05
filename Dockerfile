@@ -6,9 +6,12 @@ FROM node:20-alpine AS build
 
 WORKDIR /app
 
-# Install root dependencies
-COPY package.json package-lock.json* ./
-RUN npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+ENV HUSKY=0
+
+# Install root dependencies (scripts off: no git repo inside the image,
+# husky prepare would fail)
+COPY package.json package-lock.json ./
+RUN npm ci --ignore-scripts --no-audit --no-fund || npm install --ignore-scripts --no-audit --no-fund
 
 # Build backend (tsc → dist/)
 COPY tsconfig.backend.json ./
@@ -17,8 +20,8 @@ COPY src/shared ./src/shared
 RUN npx tsc --project tsconfig.backend.json
 
 # Build frontend (vite → src/frontend/dist)
-COPY src/frontend/package.json src/frontend/
-RUN cd src/frontend && npm install --no-audit --no-fund
+COPY src/frontend/package.json src/frontend/package-lock.json ./src/frontend/
+RUN cd src/frontend && (npm ci --ignore-scripts --no-audit --no-fund || npm install --ignore-scripts --no-audit --no-fund)
 COPY src/frontend ./src/frontend
 RUN cd src/frontend && npm run build
 
@@ -30,8 +33,9 @@ WORKDIR /app
 
 # Runtime dependencies only (frontend is served as static assets by the API
 # gateway or a reverse proxy; keep the node dependency tree minimal)
-COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev --no-audit --no-fund || npm install --omit=dev --no-audit --no-fund
+ENV HUSKY=0
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund || npm install --omit=dev --ignore-scripts --no-audit --no-fund
 
 # Compiled backend
 COPY --from=build /app/dist ./dist

@@ -1,6 +1,7 @@
 # Dependencies
 node_modules/
-package-lock.json
+# Lockfiles ARE committed: CI and Docker rely on npm ci with a lockfile.
+# yarn.lock / pnpm-lock.yaml stay ignored because this project uses npm.
 yarn.lock
 pnpm-lock.yaml
 
