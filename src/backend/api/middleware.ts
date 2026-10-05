@@ -279,7 +279,7 @@ export function auditMiddleware(orchestrator: any) {
       const duration = Date.now() - startTime;
 
       // Log to audit service
-      if (orchestrator && orchestrator.auditService) {
+      if (orchestrator?.auditService) {
         orchestrator.auditService.log({
           timestamp: new Date(),
           actor: authReq.user?.id || 'anonymous',
@@ -309,7 +309,6 @@ export function auditMiddleware(orchestrator: any) {
  * Measures and logs request processing time
  */
 export function timingMiddleware(req: Request, res: Response, next: NextFunction): void {
-  const context: IRequestContext = (req as any).context;
   const startTime = Date.now();
 
   // Capture response
@@ -383,7 +382,7 @@ function sanitizeObject(obj: any): any {
  *
  * Formats error responses consistently
  */
-export function errorResponseMiddleware(err: any, req: Request, res: Response, next: NextFunction): void {
+export function errorResponseMiddleware(err: any, req: Request, res: Response, _next: NextFunction): void {
   const context: IRequestContext = (req as any).context;
   const statusCode = err.statusCode || HTTP_STATUS.INTERNAL_ERROR;
   const errorCode = err.code || API_ERROR_CODES.INTERNAL_ERROR;

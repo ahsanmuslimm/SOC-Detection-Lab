@@ -366,7 +366,7 @@ export type Middleware = (req: Request, res: Response, next: NextFunction) => vo
 /**
  * Controller method signature
  */
-export type ControllerMethod<T = any> = (req: IAuthenticatedRequest, res: Response) => Promise<void>;
+export type ControllerMethod = (req: IAuthenticatedRequest, res: Response) => Promise<void>;
 
 /**
  * API error codes

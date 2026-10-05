@@ -3,7 +3,7 @@
  */
 
 import { Router } from 'express';
-import { authMiddleware, authorizationMiddleware, asyncHandler, optionalAuthMiddleware } from '../middleware';
+import { authMiddleware, authorizationMiddleware, asyncHandler } from '../middleware';
 import { UserController } from '../controllers/UserController';
 import type { IServiceOrchestrator } from '../../services/orchestrator/types';
 

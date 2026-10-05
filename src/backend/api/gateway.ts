@@ -103,7 +103,6 @@ export class ApiGateway implements IApiGateway {
 
     // Request logging
     this.app.use((req: Request, res: Response, next: NextFunction) => {
-      const context: IRequestContext = (req as any).context;
       console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} - ${req.ip}`);
       next();
     });
@@ -228,7 +227,7 @@ export class ApiGateway implements IApiGateway {
    * Setup error handling
    */
   private setupErrorHandling(): void {
-    this.app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+    this.app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
       const context: IRequestContext = (req as any).context || {
         traceId: uuidv4(),
         requestId: uuidv4(),

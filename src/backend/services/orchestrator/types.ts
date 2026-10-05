@@ -62,7 +62,7 @@ export interface ILoggingService {
 
 export interface IErrorHandlingService {
   handle(error: Error): any;
-  registerHandler(type: string, handler: Function): void;
+  registerHandler(type: string, handler: (...args: any[]) => void): void;
   initialize?(): Promise<void>;
 }
 

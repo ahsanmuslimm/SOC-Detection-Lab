@@ -82,7 +82,7 @@ class MockAuditService implements IAuditService {
     this.logs.push({ ...entry, timestamp: new Date() });
   }
 
-  async getLogs(filter?: any): Promise<any[]> {
+  async getLogs(_filter?: any): Promise<any[]> {
     return this.logs;
   }
 
@@ -137,54 +137,18 @@ class MockLoggingService implements ILoggingService {
 }
 
 class MockErrorHandlingService implements IErrorHandlingService {
-  private handlers: Map<string, Function> = new Map();
+  private handlers: Map<string, (...args: any[]) => void> = new Map();
 
   handle(error: Error): any {
     return { success: false, error: error.message };
   }
 
-  registerHandler(type: string, handler: Function): void {
+  registerHandler(type: string, handler: (...args: any[]) => void): void {
     this.handlers.set(type, handler);
   }
 
   async initialize(): Promise<void> {
     console.log('✓ ErrorHandlingService initialized');
-  }
-}
-
-class MockAuthService implements IAuthService {
-  async authenticate(credentials: any): Promise<string> {
-    return 'mock-token-' + Date.now();
-  }
-
-  async validateToken(token: string): Promise<boolean> {
-    return token.startsWith('mock-token-');
-  }
-
-  async refreshToken(token: string): Promise<string> {
-    return 'mock-token-' + Date.now();
-  }
-
-  async initialize(): Promise<void> {
-    console.log('✓ AuthService initialized');
-  }
-}
-
-class MockUserService implements IUserService {
-  async getUser(id: string): Promise<any> {
-    return { id, username: 'user-' + id };
-  }
-
-  async createUser(userData: any): Promise<any> {
-    return { ...userData, id: Date.now().toString() };
-  }
-
-  async updateUser(id: string, userData: any): Promise<any> {
-    return { id, ...userData };
-  }
-
-  async initialize(): Promise<void> {
-    console.log('✓ UserService initialized');
   }
 }
 
@@ -201,7 +165,7 @@ class MockTokenService implements ITokenService {
     }
   }
 
-  async revokeToken(token: string): Promise<void> {
+  async revokeToken(_token: string): Promise<void> {
     // Mock implementation
   }
 
@@ -232,42 +196,12 @@ class MockSessionService implements ISessionService {
   }
 }
 
-class MockRBACService implements IRBACService {
-  private rolePermissions: Map<string, Set<string>> = new Map([
-    ['admin', new Set(['*'])],
-    ['analyst', new Set(['alert:read', 'case:create', 'investigation:read'])],
-    ['engineer', new Set(['rule:create', 'rule:edit', 'rule:deploy'])]
-  ]);
-
-  hasPermission(role: string, permission: string): boolean {
-    const permissions = this.rolePermissions.get(role);
-    if (!permissions) return false;
-    return permissions.has('*') || permissions.has(permission);
-  }
-
-  getPermissions(role: string): string[] {
-    const permissions = this.rolePermissions.get(role);
-    return permissions ? Array.from(permissions) : [];
-  }
-
-  async addPermission(role: string, permission: string): Promise<void> {
-    if (!this.rolePermissions.has(role)) {
-      this.rolePermissions.set(role, new Set());
-    }
-    this.rolePermissions.get(role)!.add(permission);
-  }
-
-  async initialize(): Promise<void> {
-    console.log('✓ RBACService initialized');
-  }
-}
-
 class MockPermissionService implements IPermissionService {
-  async checkPermission(userId: string, action: string, resource: string): Promise<boolean> {
+  async checkPermission(_userId: string, _action: string, _resource: string): Promise<boolean> {
     return true;
   }
 
-  async getPermissions(userId: string): Promise<string[]> {
+  async getPermissions(_userId: string): Promise<string[]> {
     return ['read', 'write'];
   }
 
@@ -279,7 +213,7 @@ class MockPermissionService implements IPermissionService {
 class MockPolicyEngine implements IPolicyEngine {
   private policies: Map<string, any> = new Map();
 
-  async evaluatePolicy(policy: any, context: any): Promise<boolean> {
+  async evaluatePolicy(_policy: any, _context: any): Promise<boolean> {
     return true;
   }
 
@@ -293,7 +227,7 @@ class MockPolicyEngine implements IPolicyEngine {
 }
 
 class MockAccessControlService implements IAccessControlService {
-  async isAccessAllowed(userId: string, action: string): Promise<boolean> {
+  async isAccessAllowed(_userId: string, _action: string): Promise<boolean> {
     return true;
   }
 
@@ -353,7 +287,7 @@ class MockExportService implements IExportService {
 }
 
 class MockSearchService implements ISearchService {
-  async search(query: string, _filters?: any): Promise<any[]> {
+  async search(_query: string, _filters?: any): Promise<any[]> {
     return [];
   }
 
@@ -595,7 +529,7 @@ export class ServiceOrchestrator implements IServiceOrchestrator {
       // Initialize in order
       for (const serviceName of INITIALIZATION_ORDER) {
         const service = this.serviceMap.get(serviceName);
-        if (service && service.initialize) {
+        if (service?.initialize) {
           await service.initialize();
         }
       }
@@ -618,7 +552,7 @@ export class ServiceOrchestrator implements IServiceOrchestrator {
       for (const serviceName of shutdownOrder) {
         const service = this.serviceMap.get(serviceName);
         if (service) {
-          if (service.stop) service.stop();
+          if (service.stop) {service.stop();}
           console.log(`✓ ${serviceName} stopped`);
         }
       }

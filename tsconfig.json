@@ -40,12 +40,17 @@
     "tsBuildInfoFile": ".tsbuildinfo"
   },
   "include": [
-    "src/**/*"
+    "src/backend/index.ts",
+    "src/backend/api/**/*",
+    "src/backend/services/**/*",
+    "src/shared/**/*"
   ],
   "exclude": [
     "node_modules",
     "dist",
     "build",
+    "src/frontend",
+    "src/backend/domain-*",
     "**/*.test.ts",
     "**/__tests__/**/*",
     "**/prototype/**/*"

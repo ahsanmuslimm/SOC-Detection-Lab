@@ -16,9 +16,9 @@ export class UserController extends BaseController {
       const { page, pageSize, limit, offset } = this.getPaginationParams(req);
 
       const filters: Record<string, any> = {};
-      if (req.query.role) filters.role = req.query.role;
-      if (req.query.status) filters.status = req.query.status;
-      if (req.query.search) filters.search = req.query.search;
+      if (req.query.role) {filters.role = req.query.role;}
+      if (req.query.status) {filters.status = req.query.status;}
+      if (req.query.search) {filters.search = req.query.search;}
 
       const result = await this.orchestrator.userService?.queryUsers?.({
         limit,

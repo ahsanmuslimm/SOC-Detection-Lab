@@ -174,12 +174,12 @@ export abstract class BaseController {
   protected getFilterParams(req: any): Record<string, any> {
     const filters: Record<string, any> = {};
 
-    if (req.query.status) filters.status = req.query.status;
-    if (req.query.severity) filters.severity = req.query.severity;
-    if (req.query.assignedTo) filters.assignedTo = req.query.assignedTo;
-    if (req.query.search) filters.search = req.query.search;
-    if (req.query.dateFrom) filters.dateFrom = req.query.dateFrom;
-    if (req.query.dateTo) filters.dateTo = req.query.dateTo;
+    if (req.query.status) {filters.status = req.query.status;}
+    if (req.query.severity) {filters.severity = req.query.severity;}
+    if (req.query.assignedTo) {filters.assignedTo = req.query.assignedTo;}
+    if (req.query.search) {filters.search = req.query.search;}
+    if (req.query.dateFrom) {filters.dateFrom = req.query.dateFrom;}
+    if (req.query.dateTo) {filters.dateTo = req.query.dateTo;}
 
     return filters;
   }
