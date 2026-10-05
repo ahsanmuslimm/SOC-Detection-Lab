@@ -50,6 +50,10 @@ import {
   InMemoryRBACService
 } from './domain-services';
 
+import { isDatabaseConfigured, DatabaseClient } from '../../database/client';
+import { UserRepository } from '../../database/repositories/UserRepository';
+import { AuthRepository } from '../../database/repositories/AuthRepository';
+
 /**
  * Mock implementations for demonstration
  * In production, these would be replaced with actual service instantiation
@@ -526,7 +530,36 @@ export class ServiceOrchestrator implements IServiceOrchestrator {
     console.log('╚════════════════════════════════════════╝\n');
 
     try {
-      // Initialize in order
+      // ── PostgreSQL repository swap ───────────────────────────────────────
+      // When DATABASE_URL or DB_HOST is present replace in-memory services
+      // with real PostgreSQL-backed repositories.
+      if (isDatabaseConfigured()) {
+        console.log('[orchestrator] Using PostgreSQL repositories');
+        const db = DatabaseClient.getInstance();
+
+        const userRepo = new UserRepository(db);
+        const authRepo = new AuthRepository(db, userRepo);
+
+        this.userService = userRepo;
+        this.authService = authRepo;
+
+        this.serviceMap.set('userService', userRepo);
+        this.serviceMap.set('authService', authRepo);
+
+        // DB health check entry
+        this.serviceMap.set('database', {
+          performHealthCheck: () => db.healthCheck(),
+          initialize: async () => {
+            const h = await db.healthCheck();
+            console.log(`✓ DatabaseClient initialized (${h.status})`);
+          },
+        });
+      } else {
+        console.log('[orchestrator] Using in-memory services (no DATABASE_URL set)');
+      }
+      // ── End swap ────────────────────────────────────────────────────────
+
+      // Initialize all services in order
       for (const serviceName of INITIALIZATION_ORDER) {
         const service = this.serviceMap.get(serviceName);
         if (service?.initialize) {
@@ -534,8 +567,14 @@ export class ServiceOrchestrator implements IServiceOrchestrator {
         }
       }
 
+      // Initialize the database entry (not in INITIALIZATION_ORDER)
+      const dbService = this.serviceMap.get('database');
+      if (dbService?.initialize) {
+        await dbService.initialize();
+      }
+
       this.initialized = true;
-      console.log('\n✓ All 19 services initialized successfully\n');
+      console.log('\n✓ All services initialized successfully\n');
     } catch (error) {
       console.error('Failed to initialize orchestrator:', error);
       throw error;
@@ -548,13 +587,19 @@ export class ServiceOrchestrator implements IServiceOrchestrator {
     try {
       // Shutdown in reverse order
       const shutdownOrder = Array.from(INITIALIZATION_ORDER).reverse();
-      
+
       for (const serviceName of shutdownOrder) {
         const service = this.serviceMap.get(serviceName);
         if (service) {
-          if (service.stop) {service.stop();}
+          if (service.stop) { service.stop(); }
           console.log(`✓ ${serviceName} stopped`);
         }
+      }
+
+      // Drain database pool if it was opened
+      if (isDatabaseConfigured()) {
+        await DatabaseClient.getInstance().end().catch(() => undefined);
+        console.log('✓ DatabaseClient pool drained');
       }
 
       this.initialized = false;
