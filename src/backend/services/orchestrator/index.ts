@@ -57,6 +57,8 @@ import { AlertRepository } from '../../database/repositories/AlertRepository';
 import { CaseRepository } from '../../database/repositories/CaseRepository';
 import { DetectionRuleRepository } from '../../database/repositories/DetectionRuleRepository';
 import { InvestigationRepository } from '../../database/repositories/InvestigationRepository';
+import { ReportRepository } from '../../database/repositories/ReportRepository';
+import { RBACRepository } from '../../database/repositories/RBACRepository';
 
 /**
  * Mock implementations for demonstration
@@ -552,6 +554,9 @@ export class ServiceOrchestrator implements IServiceOrchestrator {
         this.caseService = new CaseRepository(db);
         this.detectionService = new DetectionRuleRepository(db);
         this.investigationService = new InvestigationRepository(db);
+        this.reportService = new ReportRepository(db);
+        const rbacRepo = new RBACRepository(db);
+        this.rbacService = rbacRepo;
 
         this.serviceMap.set('userService', userRepo);
         this.serviceMap.set('authService', authRepo);
@@ -560,6 +565,8 @@ export class ServiceOrchestrator implements IServiceOrchestrator {
         this.serviceMap.set('caseService', this.caseService);
         this.serviceMap.set('detectionService', this.detectionService);
         this.serviceMap.set('investigationService', this.investigationService);
+        this.serviceMap.set('reportService', this.reportService);
+        this.serviceMap.set('rbacService', rbacRepo);
 
         // DB health check entry
         this.serviceMap.set('database', {
