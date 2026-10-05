@@ -16,7 +16,6 @@ RUN npm ci --ignore-scripts --no-audit --no-fund || npm install --ignore-scripts
 # Build backend (tsc → dist/)
 COPY tsconfig.backend.json ./
 COPY src/backend ./src/backend
-COPY src/shared ./src/shared
 RUN npx tsc --project tsconfig.backend.json
 
 # Build frontend (vite → src/frontend/dist)
