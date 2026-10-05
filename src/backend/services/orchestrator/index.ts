@@ -53,6 +53,7 @@ import {
 import { isDatabaseConfigured, DatabaseClient } from '../../database/client';
 import { UserRepository } from '../../database/repositories/UserRepository';
 import { AuthRepository } from '../../database/repositories/AuthRepository';
+import { AlertRepository } from '../../database/repositories/AlertRepository';
 
 /**
  * Mock implementations for demonstration
@@ -539,12 +540,17 @@ export class ServiceOrchestrator implements IServiceOrchestrator {
 
         const userRepo = new UserRepository(db);
         const authRepo = new AuthRepository(db, userRepo);
+        const alertRepo = new AlertRepository(db);
 
         this.userService = userRepo;
         this.authService = authRepo;
+        this.alertService = alertRepo;
+        this.queryService = alertRepo;   // AlertRepository also implements queryAlerts
 
         this.serviceMap.set('userService', userRepo);
         this.serviceMap.set('authService', authRepo);
+        this.serviceMap.set('alertService', alertRepo);
+        this.serviceMap.set('queryService', alertRepo);
 
         // DB health check entry
         this.serviceMap.set('database', {
