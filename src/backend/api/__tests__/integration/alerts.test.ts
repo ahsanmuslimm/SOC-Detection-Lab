@@ -18,8 +18,8 @@ describe('Alert API Integration Tests', () => {
   beforeAll(async () => {
     orchestrator = createOrchestrator();
     gateway = createApiGateway(orchestrator);
-    await gateway.start(3001);
-    baseUrl = 'http://localhost:3001/api/v1';
+    await gateway.start(3009);
+    baseUrl = 'http://localhost:3009/api/v1';
   });
 
   afterAll(async () => {
