@@ -8,6 +8,7 @@ import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { createApiGateway } from '../../gateway';
 import { createOrchestrator } from '../../../services/orchestrator';
 import type { IServiceOrchestrator } from '../../../services/orchestrator/types';
+import { adminAuthHeader, analystAuthHeader, viewerAuthHeader, } from './helpers/auth';
 
 describe('Investigations API Integration Tests', () => {
   let orchestrator: IServiceOrchestrator;
@@ -28,10 +29,10 @@ describe('Investigations API Integration Tests', () => {
   describe('GET /investigations', () => {
     it('should list investigations with pagination', async () => {
       const response = await fetch(`${baseUrl}/investigations?page=1&pageSize=25`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(200);
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.success).toBe(true);
       expect(data.pagination).toBeDefined();
       expect(Array.isArray(data.items)).toBe(true);
@@ -39,23 +40,23 @@ describe('Investigations API Integration Tests', () => {
 
     it('should filter investigations by status', async () => {
       const response = await fetch(`${baseUrl}/investigations?status=open`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(200);
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.pagination).toBeDefined();
     });
 
     it('should filter investigations by priority', async () => {
       const response = await fetch(`${baseUrl}/investigations?priority=high`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(200);
     });
 
     it('should support assignedTo filter', async () => {
       const response = await fetch(`${baseUrl}/investigations?assignedTo=analyst-1`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(200);
     });
@@ -67,7 +68,7 @@ describe('Investigations API Integration Tests', () => {
 
     it('should support multiple filters', async () => {
       const response = await fetch(`${baseUrl}/investigations?status=open&priority=critical&page=1`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(200);
     });
@@ -79,7 +80,7 @@ describe('Investigations API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           title: 'Brute Force Attack Investigation',
@@ -89,7 +90,7 @@ describe('Investigations API Integration Tests', () => {
         })
       });
       expect(response.status).toBe(201);
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.success).toBe(true);
       expect(data.data.id).toBeDefined();
     });
@@ -99,7 +100,7 @@ describe('Investigations API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           title: 'Missing Fields'
@@ -107,7 +108,7 @@ describe('Investigations API Integration Tests', () => {
         })
       });
       expect(response.status).toBe(422);
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.error.code).toBe('VALIDATION_ERROR');
     });
 
@@ -116,7 +117,7 @@ describe('Investigations API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           title: '',
@@ -132,7 +133,7 @@ describe('Investigations API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer viewer-token'
+          'Authorization': viewerAuthHeader()
         },
         body: JSON.stringify({
           title: 'Test',
@@ -147,14 +148,14 @@ describe('Investigations API Integration Tests', () => {
   describe('GET /investigations/:id', () => {
     it('should get investigation by id', async () => {
       const response = await fetch(`${baseUrl}/investigations/inv-123`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect([200, 404]).toContain(response.status);
     });
 
     it('should return 404 for non-existent investigation', async () => {
       const response = await fetch(`${baseUrl}/investigations/non-existent-inv`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(404);
     });
@@ -166,10 +167,10 @@ describe('Investigations API Integration Tests', () => {
 
     it('should include investigation details', async () => {
       const response = await fetch(`${baseUrl}/investigations/inv-123`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       if (response.status === 200) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         expect(data.data.title).toBeDefined();
         expect(data.data.status).toBeDefined();
       }
@@ -182,7 +183,7 @@ describe('Investigations API Integration Tests', () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           status: 'in_progress'
@@ -196,7 +197,7 @@ describe('Investigations API Integration Tests', () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           findings: 'Investigation results...'
@@ -210,7 +211,7 @@ describe('Investigations API Integration Tests', () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           assignedTo: 'analyst-2'
@@ -224,7 +225,7 @@ describe('Investigations API Integration Tests', () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer viewer-token'
+          'Authorization': viewerAuthHeader()
         },
         body: JSON.stringify({
           status: 'closed'
@@ -237,18 +238,18 @@ describe('Investigations API Integration Tests', () => {
   describe('GET /investigations/:id/timeline', () => {
     it('should get investigation timeline', async () => {
       const response = await fetch(`${baseUrl}/investigations/inv-123/timeline`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect([200, 404]).toContain(response.status);
       if (response.status === 200) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         expect(Array.isArray(data.data || data)).toBe(true);
       }
     });
 
     it('should return 404 for non-existent investigation', async () => {
       const response = await fetch(`${baseUrl}/investigations/non-existent-inv/timeline`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(404);
     });
@@ -260,10 +261,10 @@ describe('Investigations API Integration Tests', () => {
 
     it('should include timeline events', async () => {
       const response = await fetch(`${baseUrl}/investigations/inv-123/timeline`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       if (response.status === 200) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         const timeline = Array.isArray(data.data) ? data.data : [];
         if (timeline.length > 0) {
           expect(timeline[0].timestamp).toBeDefined();
@@ -278,7 +279,7 @@ describe('Investigations API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           closeReason: 'Investigation complete',
@@ -291,7 +292,7 @@ describe('Investigations API Integration Tests', () => {
     it('should return 404 for non-existent investigation', async () => {
       const response = await fetch(`${baseUrl}/investigations/non-existent-inv/close`, {
         method: 'POST',
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(404);
     });
@@ -301,7 +302,7 @@ describe('Investigations API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({})
       });
@@ -313,7 +314,7 @@ describe('Investigations API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer viewer-token'
+          'Authorization': viewerAuthHeader()
         },
         body: JSON.stringify({
           closeReason: 'Done'
@@ -327,14 +328,14 @@ describe('Investigations API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           closeReason: 'Resolved'
         })
       });
       if (response.status === 200) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         if (data.data) {
           expect(data.data.status).toBe('closed');
         }
@@ -345,9 +346,9 @@ describe('Investigations API Integration Tests', () => {
   describe('Error Handling', () => {
     it('should return consistent error format', async () => {
       const response = await fetch(`${baseUrl}/investigations/invalid`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.error).toBeDefined();
       expect(data.error.code).toBeDefined();
       expect(data.error.message).toBeDefined();
@@ -355,7 +356,7 @@ describe('Investigations API Integration Tests', () => {
 
     it('should include trace ID in response headers', async () => {
       const response = await fetch(`${baseUrl}/investigations`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.headers.get('X-Trace-Id')).toBeDefined();
     });
@@ -365,7 +366,7 @@ describe('Investigations API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: 'not json'
       });
@@ -377,7 +378,7 @@ describe('Investigations API Integration Tests', () => {
     it('should list investigations within 100ms', async () => {
       const start = Date.now();
       await fetch(`${baseUrl}/investigations?pageSize=10`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       const duration = Date.now() - start;
       expect(duration).toBeLessThan(100);
@@ -386,7 +387,7 @@ describe('Investigations API Integration Tests', () => {
     it('should get single investigation within 50ms', async () => {
       const start = Date.now();
       await fetch(`${baseUrl}/investigations/inv-123`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       const duration = Date.now() - start;
       expect(duration).toBeLessThan(100);
@@ -395,7 +396,7 @@ describe('Investigations API Integration Tests', () => {
     it('should get timeline within 100ms', async () => {
       const start = Date.now();
       await fetch(`${baseUrl}/investigations/inv-123/timeline`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       const duration = Date.now() - start;
       expect(duration).toBeLessThan(100);
@@ -408,7 +409,7 @@ describe('Investigations API Integration Tests', () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer analyst-token'
+          'Authorization': analystAuthHeader()
         },
         body: JSON.stringify({
           status: 'closed'
@@ -419,7 +420,7 @@ describe('Investigations API Integration Tests', () => {
 
     it('should include CORS headers', async () => {
       const response = await fetch(`${baseUrl}/investigations`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.headers.get('access-control-allow-origin')).toBeDefined();
     });

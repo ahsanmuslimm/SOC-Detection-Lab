@@ -59,8 +59,13 @@ export class CaseController extends BaseController {
 
       this.log('Creating case', { title: caseData.title, userId: req.user.id });
 
-      if (!caseData.title || !caseData.severity) {
-        this.validationError(res, { fields: ['title', 'severity'], message: 'Missing required fields' });
+      if (!caseData.title || String(caseData.title).trim() === '') {
+        this.validationError(res, { fields: ['title'], message: 'Title is required and cannot be empty' });
+        return;
+      }
+
+      if (!caseData.severity || !caseData.caseType) {
+        this.validationError(res, { fields: ['title', 'severity', 'caseType'], message: 'Missing required fields' });
         return;
       }
 
@@ -197,6 +202,13 @@ export class CaseController extends BaseController {
 
       if (!assignToUserId) {
         this.validationError(res, { field: 'assignToUserId', message: 'Required' });
+        return;
+      }
+
+      const existingCase = await this.orchestrator.caseService?.getCase?.(id);
+
+      if (!existingCase) {
+        this.notFound(res, 'Case');
         return;
       }
 

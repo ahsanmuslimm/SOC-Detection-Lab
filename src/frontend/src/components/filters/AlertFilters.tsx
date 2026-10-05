@@ -10,7 +10,7 @@
 import React, { useState } from 'react';
 import { X, ChevronDown } from 'lucide-react';
 import clsx from 'clsx';
-import type { AlertSeverity, AlertStatus } from '@types/index';
+import type { AlertSeverity, AlertStatus } from '@app-types';
 
 interface AlertFiltersProps {
   onFiltersChange: (filters: AlertFilterState) => void;

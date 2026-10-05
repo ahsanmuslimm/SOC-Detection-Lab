@@ -44,6 +44,7 @@ export interface IApiResponse<T = any> {
  * Paginated response
  */
 export interface IPaginatedResponse<T = any> {
+  success: true;
   items: T[];
   pagination: {
     page: number;
@@ -197,7 +198,8 @@ export interface ICreateCaseRequest {
   title: string;
   description: string;
   severity: 'critical' | 'high' | 'medium' | 'low';
-  classification: string;
+  caseType?: string;
+  classification?: string;
   alertIds?: string[];
   dueDate?: string;
 }
@@ -258,10 +260,11 @@ export interface ILoginResponse {
  * Register request
  */
 export interface IRegisterRequest {
-  username: string;
+  username?: string;
   email: string;
   password: string;
   fullName?: string;
+  role?: string;
 }
 
 /**
@@ -279,9 +282,14 @@ export interface ICreateInvestigationRequest {
  */
 export interface ICreateReportRequest {
   title: string;
-  reportType: 'incident' | 'threat' | 'dashboard' | 'forensic';
-  dateRangeStart: string;
-  dateRangeEnd: string;
+  description?: string;
+  reportType: string;
+  dateRangeStart?: string;
+  dateRangeEnd?: string;
+  scope?: {
+    startDate: string;
+    endDate: string;
+  };
   caseIds?: string[];
   alertIds?: string[];
   fileFormat?: 'pdf' | 'html' | 'json' | 'csv';
@@ -367,8 +375,10 @@ export const API_ERROR_CODES = {
   // Authentication
   UNAUTHORIZED: 'UNAUTHORIZED',
   INVALID_CREDENTIALS: 'INVALID_CREDENTIALS',
+  AUTHENTICATION_FAILED: 'AUTHENTICATION_FAILED',
   TOKEN_EXPIRED: 'TOKEN_EXPIRED',
   TOKEN_INVALID: 'TOKEN_INVALID',
+  INVALID_REFRESH_TOKEN: 'INVALID_REFRESH_TOKEN',
   
   // Authorization
   FORBIDDEN: 'FORBIDDEN',

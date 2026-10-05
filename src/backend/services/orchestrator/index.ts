@@ -29,8 +29,26 @@ import {
   IMetricsService,
   IServiceHealth,
   INITIALIZATION_ORDER,
-  IOrchestratorConfig
+  IOrchestratorConfig,
+  IAlertDomainService,
+  IQueryDomainService,
+  ICaseDomainService,
+  IDetectionDomainService,
+  IInvestigationDomainService,
+  IReportDomainService
 } from './types';
+
+import {
+  InMemoryAlertService,
+  InMemoryQueryService,
+  InMemoryCaseService,
+  InMemoryDetectionService,
+  InMemoryInvestigationService,
+  InMemoryReportService,
+  InMemoryUserService,
+  InMemoryAuthService,
+  InMemoryRBACService
+} from './domain-services';
 
 /**
  * Mock implementations for demonstration
@@ -335,7 +353,7 @@ class MockExportService implements IExportService {
 }
 
 class MockSearchService implements ISearchService {
-  async search(query: string, filters?: any): Promise<any[]> {
+  async search(query: string, _filters?: any): Promise<any[]> {
     return [];
   }
 
@@ -434,35 +452,46 @@ class MockMetricsService implements IMetricsService {
  * Service Orchestrator - Main Implementation
  */
 export class ServiceOrchestrator implements IServiceOrchestrator {
-  configService: IConfigService;
-  auditService: IAuditService;
-  cacheService: ICacheService;
-  loggingService: ILoggingService;
-  errorHandlingService: IErrorHandlingService;
+  configService!: IConfigService;
+  auditService!: IAuditService;
+  cacheService!: ICacheService;
+  loggingService!: ILoggingService;
+  errorHandlingService!: IErrorHandlingService;
 
-  authService: IAuthService;
-  userService: IUserService;
-  tokenService: ITokenService;
-  sessionService: ISessionService;
+  authService!: IAuthService;
+  userService!: IUserService;
+  tokenService!: ITokenService;
+  sessionService!: ISessionService;
 
-  rbacService: IRBACService;
-  permissionService: IPermissionService;
-  policyEngine: IPolicyEngine;
-  accessControlService: IAccessControlService;
+  rbacService!: IRBACService;
+  permissionService!: IPermissionService;
+  policyEngine!: IPolicyEngine;
+  accessControlService!: IAccessControlService;
 
-  analyticsService: IAnalyticsService;
-  syncService: ISyncService;
-  exportService: IExportService;
-  searchService: ISearchService;
-  queueService: IQueueService;
-  storageService: IStorageService;
-  cacheServiceIntegration: ICacheServiceIntegration;
-  configurationService: IConfigurationService;
-  metricsService: IMetricsService;
+  analyticsService!: IAnalyticsService;
+  syncService!: ISyncService;
+  exportService!: IExportService;
+  searchService!: ISearchService;
+  queueService!: IQueueService;
+  storageService!: IStorageService;
+  cacheServiceIntegration!: ICacheServiceIntegration;
+  configurationService!: IConfigurationService;
+  metricsService!: IMetricsService;
+
+  alertService!: IAlertDomainService;
+  queryService!: IQueryDomainService;
+  caseService!: ICaseDomainService;
+  detectionService!: IDetectionDomainService;
+  investigationService!: IInvestigationDomainService;
+  reportService!: IReportDomainService;
 
   private initialized: boolean = false;
   private serviceMap: Map<string, any> = new Map();
   private config: IOrchestratorConfig;
+
+  getConfig(): IOrchestratorConfig {
+    return this.config;
+  }
 
   constructor(config?: IOrchestratorConfig) {
     this.config = {
@@ -484,14 +513,15 @@ export class ServiceOrchestrator implements IServiceOrchestrator {
     this.auditService = new MockAuditService();
     this.cacheService = new MockCacheService();
 
-    // Authentication Services
+    // Authentication Services (in-memory store keeps the API functional)
     this.tokenService = new MockTokenService();
-    this.userService = new MockUserService();
+    const userService = new InMemoryUserService();
+    this.userService = userService;
     this.sessionService = new MockSessionService();
-    this.authService = new MockAuthService();
+    this.authService = new InMemoryAuthService(userService);
 
     // Authorization Services
-    this.rbacService = new MockRBACService();
+    this.rbacService = new InMemoryRBACService();
     this.permissionService = new MockPermissionService();
     this.policyEngine = new MockPolicyEngine();
     this.accessControlService = new MockAccessControlService();
@@ -499,13 +529,22 @@ export class ServiceOrchestrator implements IServiceOrchestrator {
     // Integration Services
     this.metricsService = new MockMetricsService();
     this.configurationService = new MockConfigurationService();
-    this.cacheServiceIntegration = new MockCacheService();
+    this.cacheServiceIntegration = new MockCacheService() as unknown as ICacheServiceIntegration;
     this.analyticsService = new MockAnalyticsService();
     this.syncService = new MockSyncService();
     this.exportService = new MockExportService();
     this.searchService = new MockSearchService();
     this.queueService = new MockQueueService();
     this.storageService = new MockStorageService();
+
+    // Domain Services (SOC workflows)
+    const alertService = new InMemoryAlertService();
+    this.alertService = alertService;
+    this.queryService = new InMemoryQueryService(alertService);
+    this.caseService = new InMemoryCaseService();
+    this.detectionService = new InMemoryDetectionService();
+    this.investigationService = new InMemoryInvestigationService();
+    this.reportService = new InMemoryReportService();
 
     // Build service map
     this.buildServiceMap();
@@ -534,6 +573,12 @@ export class ServiceOrchestrator implements IServiceOrchestrator {
     this.serviceMap.set('cacheServiceIntegration', this.cacheServiceIntegration);
     this.serviceMap.set('configurationService', this.configurationService);
     this.serviceMap.set('metricsService', this.metricsService);
+    this.serviceMap.set('alertService', this.alertService);
+    this.serviceMap.set('queryService', this.queryService);
+    this.serviceMap.set('caseService', this.caseService);
+    this.serviceMap.set('detectionService', this.detectionService);
+    this.serviceMap.set('investigationService', this.investigationService);
+    this.serviceMap.set('reportService', this.reportService);
   }
 
   async initialize(): Promise<void> {

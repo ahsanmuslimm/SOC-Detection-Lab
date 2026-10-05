@@ -33,13 +33,30 @@ export class ReportController extends BaseController {
     try {
       const reportData = req.body as ICreateReportRequest;
 
-      if (!reportData.title || !reportData.reportType || !reportData.dateRangeStart || !reportData.dateRangeEnd) {
-        this.validationError(res, { fields: ['title', 'reportType', 'dateRangeStart', 'dateRangeEnd'] });
+      const VALID_REPORT_TYPES = ['daily_summary', 'weekly_summary', 'monthly_summary', 'incident_analysis', 'coverage', 'executive'];
+
+      if (!reportData.title || !reportData.reportType) {
+        this.validationError(res, { fields: ['title', 'reportType'], message: 'Missing required fields' });
         return;
       }
 
+      if (!VALID_REPORT_TYPES.includes(reportData.reportType)) {
+        this.validationError(res, {
+          field: 'reportType',
+          message: `Must be one of: ${VALID_REPORT_TYPES.join(', ')}`
+        });
+        return;
+      }
+
+      // Default reporting scope: the 7 days ending today.
+      const scope = reportData.scope || {
+        startDate: new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString().slice(0, 10),
+        endDate: new Date().toISOString().slice(0, 10)
+      };
+
       const report = await this.orchestrator.reportService?.generateReport?.({
         ...reportData,
+        scope,
         generatedBy: req.user.id
       });
 

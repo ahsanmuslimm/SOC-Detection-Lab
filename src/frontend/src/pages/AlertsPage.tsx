@@ -9,7 +9,7 @@ import React, { useState } from 'react';
 import { AlertTriangle, Plus, Download } from 'lucide-react';
 import AlertsTable from '@components/tables/AlertsTable';
 import AlertFilters, { AlertFilterState } from '@components/filters/AlertFilters';
-import type { IAlert } from '@types/index';
+import type { IAlert } from '@app-types';
 
 const AlertsPage: React.FC = () => {
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -52,7 +52,7 @@ const AlertsPage: React.FC = () => {
       {/* Alerts Table */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <AlertsTable
-          initialFilters={filters}
+          initialFilters={filters as Record<string, unknown>}
           onSelectAlert={(alert) => setSelectedAlert(alert)}
         />
       </div>

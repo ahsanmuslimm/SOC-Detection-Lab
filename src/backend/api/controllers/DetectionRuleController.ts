@@ -32,8 +32,15 @@ export class DetectionRuleController extends BaseController {
     try {
       const ruleData = req.body as ICreateDetectionRuleRequest;
 
+      const VALID_SEVERITIES = ['critical', 'high', 'medium', 'low', 'info'];
+
       if (!ruleData.name || !ruleData.severity || !ruleData.ruleType || !ruleData.ruleDefinition) {
         this.validationError(res, { fields: ['name', 'severity', 'ruleType', 'ruleDefinition'] });
+        return;
+      }
+
+      if (!VALID_SEVERITIES.includes(ruleData.severity)) {
+        this.validationError(res, { field: 'severity', message: `Must be one of: ${VALID_SEVERITIES.join(', ')}` });
         return;
       }
 

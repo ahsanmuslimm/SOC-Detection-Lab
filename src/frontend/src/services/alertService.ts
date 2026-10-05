@@ -8,7 +8,7 @@
  */
 
 import { apiClient } from './apiClient';
-import type { IAlert, ICreateAlertRequest, IPaginatedResponse, IAlertStats } from '@types/index';
+import type { IApiResponse,  IAlert, ICreateAlertRequest, IPaginatedResponse, IAlertStats } from '@app-types';
 
 export const alertService = {
   /**
@@ -31,14 +31,14 @@ export const alertService = {
   /**
    * Get alert by ID
    */
-  async getAlert(id: string): Promise<{ success: boolean; data: IAlert }> {
+  async getAlert(id: string): Promise<IApiResponse<IAlert>> {
     return apiClient.get<IAlert>(`/alerts/${id}`);
   },
 
   /**
    * Create new alert
    */
-  async createAlert(data: ICreateAlertRequest): Promise<{ success: boolean; data: IAlert }> {
+  async createAlert(data: ICreateAlertRequest): Promise<IApiResponse<IAlert>> {
     return apiClient.post<IAlert>('/alerts', data);
   },
 
@@ -48,14 +48,14 @@ export const alertService = {
   async updateAlert(
     id: string,
     data: Partial<IAlert>
-  ): Promise<{ success: boolean; data: IAlert }> {
+  ): Promise<IApiResponse<IAlert>> {
     return apiClient.put<IAlert>(`/alerts/${id}`, data);
   },
 
   /**
    * Delete alert
    */
-  async deleteAlert(id: string): Promise<{ success: boolean }> {
+  async deleteAlert(id: string): Promise<IApiResponse<void>> {
     return apiClient.delete(`/alerts/${id}`);
   },
 
@@ -65,7 +65,7 @@ export const alertService = {
   async acknowledgeAlert(
     id: string,
     comment?: string
-  ): Promise<{ success: boolean; data: IAlert }> {
+  ): Promise<IApiResponse<IAlert>> {
     return apiClient.post<IAlert>(`/alerts/${id}/acknowledge`, { comment });
   },
 
@@ -75,14 +75,14 @@ export const alertService = {
   async assignAlert(
     id: string,
     userId: string
-  ): Promise<{ success: boolean; data: IAlert }> {
+  ): Promise<IApiResponse<IAlert>> {
     return apiClient.post<IAlert>(`/alerts/${id}/assign`, { assignToUserId: userId });
   },
 
   /**
    * Get alert statistics
    */
-  async getAlertStats(): Promise<{ success: boolean; data: IAlertStats }> {
+  async getAlertStats(): Promise<IApiResponse<IAlertStats>> {
     return apiClient.get<IAlertStats>('/alerts/stats/summary');
   },
 
@@ -96,7 +96,7 @@ export const alertService = {
       severity?: string;
       assignedTo?: string;
     }
-  ): Promise<{ success: boolean; data: { updated: number; total: number } }> {
+  ): Promise<IApiResponse<{ updated: number; total: number }>> {
     return apiClient.post('/alerts/bulk/update', {
       alertIds,
       ...updates,

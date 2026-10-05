@@ -9,7 +9,7 @@
  */
 
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
-import type { IApiResponse, IPaginatedResponse } from '@types/index';
+import type { IApiResponse, IPaginatedResponse } from '@app-types';
 import { useAuthStore } from '@stores/authStore';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';

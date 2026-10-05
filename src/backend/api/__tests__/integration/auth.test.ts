@@ -8,6 +8,7 @@ import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { createApiGateway } from '../../gateway';
 import { createOrchestrator } from '../../../services/orchestrator';
 import type { IServiceOrchestrator } from '../../../services/orchestrator/types';
+import { adminAuthHeader, analystAuthHeader, } from './helpers/auth';
 
 describe('Authentication API Integration Tests', () => {
   let orchestrator: IServiceOrchestrator;
@@ -37,7 +38,7 @@ describe('Authentication API Integration Tests', () => {
       });
       expect([200, 401]).toContain(response.status);
       if (response.status === 200) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         expect(data.data.accessToken).toBeDefined();
         expect(data.data.refreshToken).toBeDefined();
       }
@@ -53,7 +54,7 @@ describe('Authentication API Integration Tests', () => {
         })
       });
       expect(response.status).toBe(401);
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.error.code).toBe('AUTHENTICATION_FAILED');
     });
 
@@ -79,7 +80,7 @@ describe('Authentication API Integration Tests', () => {
         })
       });
       expect(response.status).toBe(422);
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.error.code).toBe('VALIDATION_ERROR');
     });
 
@@ -123,7 +124,7 @@ describe('Authentication API Integration Tests', () => {
         })
       });
       if (response.status === 200) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         expect(data.data.accessToken).toBeDefined();
         expect(data.data.refreshToken).toBeDefined();
         expect(data.data.expiresIn).toBeDefined();
@@ -140,7 +141,7 @@ describe('Authentication API Integration Tests', () => {
         })
       });
       if (response.status === 200) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         expect(data.data.user).toBeDefined();
         expect(data.data.user.email).toBe('admin@soc.local');
       }
@@ -151,7 +152,7 @@ describe('Authentication API Integration Tests', () => {
     it('should logout with valid token', async () => {
       const response = await fetch(`${baseUrl}/auth/logout`, {
         method: 'POST',
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect([200, 204]).toContain(response.status);
     });
@@ -175,7 +176,7 @@ describe('Authentication API Integration Tests', () => {
       });
 
       if (loginResponse.status === 200) {
-        const loginData = await loginResponse.json();
+        const loginData = await (loginResponse.json() as Promise<any>);
         const token = loginData.data.accessToken;
 
         // Logout
@@ -196,7 +197,7 @@ describe('Authentication API Integration Tests', () => {
     it('should return 200 on successful logout', async () => {
       const response = await fetch(`${baseUrl}/auth/logout`, {
         method: 'POST',
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect([200, 204]).toContain(response.status);
     });
@@ -216,7 +217,7 @@ describe('Authentication API Integration Tests', () => {
       });
       expect([200, 401]).toContain(response.status);
       if (response.status === 200) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         expect(data.data.accessToken).toBeDefined();
       }
     });
@@ -230,7 +231,7 @@ describe('Authentication API Integration Tests', () => {
         })
       });
       expect(response.status).toBe(401);
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.error.code).toBe('INVALID_REFRESH_TOKEN');
     });
 
@@ -252,7 +253,7 @@ describe('Authentication API Integration Tests', () => {
         })
       });
       if (response.status === 200) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         expect(data.data.accessToken).toBeDefined();
         expect(data.data.expiresIn).toBeDefined();
       }
@@ -276,7 +277,7 @@ describe('Authentication API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer admin-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           email: 'newuser@soc.local',
@@ -288,7 +289,7 @@ describe('Authentication API Integration Tests', () => {
       });
       expect([201, 403]).toContain(response.status);
       if (response.status === 201) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         expect(data.data.id).toBeDefined();
       }
     });
@@ -298,7 +299,7 @@ describe('Authentication API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer analyst-token'
+          'Authorization': analystAuthHeader()
         },
         body: JSON.stringify({
           email: 'newuser@soc.local',
@@ -316,7 +317,7 @@ describe('Authentication API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer admin-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           email: 'not-an-email',
@@ -334,7 +335,7 @@ describe('Authentication API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer admin-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           email: 'newuser@soc.local',
@@ -367,7 +368,7 @@ describe('Authentication API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer admin-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           email: 'admin@soc.local', // existing user
@@ -391,7 +392,7 @@ describe('Authentication API Integration Tests', () => {
           password: 'wrong'
         })
       });
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.error).toBeDefined();
       expect(data.error.code).toBeDefined();
       expect(data.error.message).toBeDefined();
@@ -418,7 +419,7 @@ describe('Authentication API Integration Tests', () => {
           password: 'test'
         })
       });
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(JSON.stringify(data)).not.toContain('stack');
     });
   });
@@ -455,7 +456,7 @@ describe('Authentication API Integration Tests', () => {
       const start = Date.now();
       await fetch(`${baseUrl}/auth/logout`, {
         method: 'POST',
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       const duration = Date.now() - start;
       expect(duration).toBeLessThan(100);
@@ -473,7 +474,7 @@ describe('Authentication API Integration Tests', () => {
         })
       });
       if (response.status === 200) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         expect(JSON.stringify(data)).not.toContain('password');
       }
     });
@@ -499,7 +500,7 @@ describe('Authentication API Integration Tests', () => {
       const response = await fetch(`${baseUrl}/auth/logout`, {
         method: 'POST',
         headers: {
-          'Authorization': 'Bearer token\nX-Inject: malicious'
+          'Authorization': 'Bearer token X-Inject: malicious'
         }
       });
       expect([200, 204, 401]).toContain(response.status);

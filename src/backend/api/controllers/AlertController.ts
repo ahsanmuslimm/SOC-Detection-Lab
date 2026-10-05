@@ -245,6 +245,13 @@ export class AlertController extends BaseController {
 
       this.log('Acknowledging alert', { id, userId: req.user.id });
 
+      const existingAlert = await this.orchestrator.alertService?.getAlert?.(id);
+
+      if (!existingAlert) {
+        this.notFound(res, 'Alert');
+        return;
+      }
+
       // Update alert status
       const updatedAlert = await this.orchestrator.alertService?.updateAlert?.(id, {
         status: 'acknowledged',
@@ -287,6 +294,13 @@ export class AlertController extends BaseController {
 
       if (!assignToUserId) {
         this.validationError(res, { field: 'assignToUserId', message: 'Required' });
+        return;
+      }
+
+      const existingAlert = await this.orchestrator.alertService?.getAlert?.(id);
+
+      if (!existingAlert) {
+        this.notFound(res, 'Alert');
         return;
       }
 

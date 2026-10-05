@@ -8,6 +8,7 @@ import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { createApiGateway } from '../../gateway';
 import { createOrchestrator } from '../../../services/orchestrator';
 import type { IServiceOrchestrator } from '../../../services/orchestrator/types';
+import { adminAuthHeader, analystAuthHeader, viewerAuthHeader, } from './helpers/auth';
 
 describe('RBAC API Integration Tests', () => {
   let orchestrator: IServiceOrchestrator;
@@ -28,20 +29,20 @@ describe('RBAC API Integration Tests', () => {
   describe('GET /rbac/roles', () => {
     it('should list all roles', async () => {
       const response = await fetch(`${baseUrl}/rbac/roles`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(200);
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.success).toBe(true);
       expect(Array.isArray(data.data || data.items)).toBe(true);
     });
 
     it('should include predefined roles', async () => {
       const response = await fetch(`${baseUrl}/rbac/roles`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       if (response.status === 200) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         const roles = data.data || data.items || [];
         const roleNames = roles.map((r: any) => r.name);
         expect(roleNames).toContain('admin');
@@ -57,10 +58,10 @@ describe('RBAC API Integration Tests', () => {
 
     it('should include role descriptions', async () => {
       const response = await fetch(`${baseUrl}/rbac/roles`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       if (response.status === 200) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         const roles = data.data || data.items || [];
         if (roles.length > 0) {
           expect(roles[0].description).toBeDefined();
@@ -70,7 +71,7 @@ describe('RBAC API Integration Tests', () => {
 
     it('should enforce rbac:read permission', async () => {
       const response = await fetch(`${baseUrl}/rbac/roles`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect([200, 403]).toContain(response.status);
     });
@@ -79,24 +80,24 @@ describe('RBAC API Integration Tests', () => {
   describe('GET /rbac/roles/:id', () => {
     it('should get role by id', async () => {
       const response = await fetch(`${baseUrl}/rbac/roles/admin`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect([200, 404]).toContain(response.status);
     });
 
     it('should return 404 for non-existent role', async () => {
       const response = await fetch(`${baseUrl}/rbac/roles/non-existent-role`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(404);
     });
 
     it('should include role permissions', async () => {
       const response = await fetch(`${baseUrl}/rbac/roles/admin`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       if (response.status === 200) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         expect(Array.isArray(data.data.permissions)).toBe(true);
       }
     });
@@ -108,10 +109,10 @@ describe('RBAC API Integration Tests', () => {
 
     it('should include all role details', async () => {
       const response = await fetch(`${baseUrl}/rbac/roles/admin`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       if (response.status === 200) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         const role = data.data;
         expect(role.name).toBeDefined();
         expect(role.description).toBeDefined();
@@ -126,7 +127,7 @@ describe('RBAC API Integration Tests', () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer admin-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           permissions: ['alert:read', 'alert:write', 'case:read']
@@ -140,7 +141,7 @@ describe('RBAC API Integration Tests', () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer admin-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           description: 'Updated analyst role'
@@ -154,7 +155,7 @@ describe('RBAC API Integration Tests', () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer admin-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           permissions: ['invalid_permission_format']
@@ -168,7 +169,7 @@ describe('RBAC API Integration Tests', () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer analyst-token'
+          'Authorization': analystAuthHeader()
         },
         body: JSON.stringify({
           permissions: ['alert:read']
@@ -182,7 +183,7 @@ describe('RBAC API Integration Tests', () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer admin-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           permissions: []
@@ -196,7 +197,7 @@ describe('RBAC API Integration Tests', () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer admin-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           permissions: ['alert:read']
@@ -209,19 +210,19 @@ describe('RBAC API Integration Tests', () => {
   describe('GET /rbac/permissions', () => {
     it('should list all available permissions', async () => {
       const response = await fetch(`${baseUrl}/rbac/permissions`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(200);
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(Array.isArray(data.data || data.items)).toBe(true);
     });
 
     it('should include all permission categories', async () => {
       const response = await fetch(`${baseUrl}/rbac/permissions`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       if (response.status === 200) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         const permissions = data.data || data.items || [];
         const permissionNames = permissions.map((p: any) => p.name);
         expect(permissionNames.length).toBeGreaterThan(0);
@@ -240,10 +241,10 @@ describe('RBAC API Integration Tests', () => {
 
     it('should include permission descriptions', async () => {
       const response = await fetch(`${baseUrl}/rbac/permissions`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       if (response.status === 200) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         const permissions = data.data || data.items || [];
         if (permissions.length > 0) {
           expect(permissions[0].description).toBeDefined();
@@ -253,7 +254,7 @@ describe('RBAC API Integration Tests', () => {
 
     it('should enforce rbac:read permission', async () => {
       const response = await fetch(`${baseUrl}/rbac/permissions`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect([200, 403]).toContain(response.status);
     });
@@ -262,18 +263,18 @@ describe('RBAC API Integration Tests', () => {
   describe('GET /rbac/user/:userId/permissions', () => {
     it('should get user permissions', async () => {
       const response = await fetch(`${baseUrl}/rbac/user/user-123/permissions`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect([200, 404]).toContain(response.status);
       if (response.status === 200) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         expect(Array.isArray(data.data || data)).toBe(true);
       }
     });
 
     it('should return 404 for non-existent user', async () => {
       const response = await fetch(`${baseUrl}/rbac/user/non-existent-user/permissions`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(404);
     });
@@ -285,10 +286,10 @@ describe('RBAC API Integration Tests', () => {
 
     it('should include permissions from all roles', async () => {
       const response = await fetch(`${baseUrl}/rbac/user/user-123/permissions`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       if (response.status === 200) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         const permissions = data.data || data;
         if (Array.isArray(permissions) && permissions.length > 0) {
           expect(permissions[0]).toBeDefined();
@@ -298,10 +299,10 @@ describe('RBAC API Integration Tests', () => {
 
     it('should show effective permissions', async () => {
       const response = await fetch(`${baseUrl}/rbac/user/user-123/permissions`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       if (response.status === 200) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         const permissions = data.data || data;
         // Permissions should be a flat list of effective permissions
         if (Array.isArray(permissions)) {
@@ -314,7 +315,7 @@ describe('RBAC API Integration Tests', () => {
 
     it('should enforce permission:read permission', async () => {
       const response = await fetch(`${baseUrl}/rbac/user/user-123/permissions`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect([200, 403, 404]).toContain(response.status);
     });
@@ -323,20 +324,20 @@ describe('RBAC API Integration Tests', () => {
   describe('Standard Roles', () => {
     it('should have admin role with all permissions', async () => {
       const response = await fetch(`${baseUrl}/rbac/roles/admin`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       if (response.status === 200) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         expect(data.data.permissions.length).toBeGreaterThan(0);
       }
     });
 
     it('should have analyst role with case and alert permissions', async () => {
       const response = await fetch(`${baseUrl}/rbac/roles/analyst`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       if (response.status === 200) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         const perms = data.data.permissions;
         const hasAlertOrCase = perms.some((p: string) =>
           p.includes('alert') || p.includes('case')
@@ -347,10 +348,10 @@ describe('RBAC API Integration Tests', () => {
 
     it('should have viewer role with read-only permissions', async () => {
       const response = await fetch(`${baseUrl}/rbac/roles/viewer`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       if (response.status === 200) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         const perms = data.data.permissions;
         // Viewer should primarily have read permissions
         const readPerms = perms.filter((p: string) => p.includes('read'));
@@ -362,9 +363,9 @@ describe('RBAC API Integration Tests', () => {
   describe('Error Handling', () => {
     it('should return consistent error format', async () => {
       const response = await fetch(`${baseUrl}/rbac/roles/invalid`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.error).toBeDefined();
       expect(data.error.code).toBeDefined();
       expect(data.error.message).toBeDefined();
@@ -372,7 +373,7 @@ describe('RBAC API Integration Tests', () => {
 
     it('should include trace ID in response', async () => {
       const response = await fetch(`${baseUrl}/rbac/roles`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.headers.get('X-Trace-Id')).toBeDefined();
     });
@@ -382,7 +383,7 @@ describe('RBAC API Integration Tests', () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer admin-token'
+          'Authorization': adminAuthHeader()
         },
         body: 'invalid json'
       });
@@ -394,7 +395,7 @@ describe('RBAC API Integration Tests', () => {
     it('should list roles within 50ms', async () => {
       const start = Date.now();
       await fetch(`${baseUrl}/rbac/roles`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       const duration = Date.now() - start;
       expect(duration).toBeLessThan(100);
@@ -403,7 +404,7 @@ describe('RBAC API Integration Tests', () => {
     it('should list permissions within 100ms', async () => {
       const start = Date.now();
       await fetch(`${baseUrl}/rbac/permissions`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       const duration = Date.now() - start;
       expect(duration).toBeLessThan(100);
@@ -412,7 +413,7 @@ describe('RBAC API Integration Tests', () => {
     it('should get user permissions within 50ms', async () => {
       const start = Date.now();
       await fetch(`${baseUrl}/rbac/user/user-123/permissions`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       const duration = Date.now() - start;
       expect(duration).toBeLessThan(100);
@@ -422,10 +423,10 @@ describe('RBAC API Integration Tests', () => {
   describe('Security Tests', () => {
     it('should not expose internal role IDs', async () => {
       const response = await fetch(`${baseUrl}/rbac/roles`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       if (response.status === 200) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         // Response should use role names, not internal IDs
         expect(JSON.stringify(data)).not.toContain('__internal');
       }
@@ -433,7 +434,7 @@ describe('RBAC API Integration Tests', () => {
 
     it('should include security headers', async () => {
       const response = await fetch(`${baseUrl}/rbac/roles`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.headers.get('x-content-type-options')).toBeDefined();
     });
@@ -441,13 +442,13 @@ describe('RBAC API Integration Tests', () => {
     it('should enforce RBAC checks on all endpoints', async () => {
       const responses = await Promise.all([
         fetch(`${baseUrl}/rbac/roles`, {
-          headers: { 'Authorization': 'Bearer viewer-token' }
+          headers: { 'Authorization': viewerAuthHeader() }
         }),
         fetch(`${baseUrl}/rbac/permissions`, {
-          headers: { 'Authorization': 'Bearer analyst-token' }
+          headers: { 'Authorization': analystAuthHeader() }
         }),
         fetch(`${baseUrl}/rbac/user/user-123/permissions`, {
-          headers: { 'Authorization': 'Bearer analyst-token' }
+          headers: { 'Authorization': analystAuthHeader() }
         })
       ]);
       // Each endpoint should return 200 or 403 (permission denied)

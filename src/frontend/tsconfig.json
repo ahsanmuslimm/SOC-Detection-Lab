@@ -5,6 +5,7 @@
     "jsx": "react-jsx",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "noEmit": true,
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -31,7 +32,8 @@
       "@pages/*": ["src/pages/*"],
       "@services/*": ["src/services/*"],
       "@hooks/*": ["src/hooks/*"],
-      "@types/*": ["src/types/*"],
+      "@app-types": ["src/types/index"],
+      "@app-types/*": ["src/types/*"],
       "@stores/*": ["src/stores/*"],
       "@utils/*": ["src/utils/*"]
     }

@@ -12,6 +12,23 @@ import type { IAuthenticatedRequest, IRequestContext } from './types';
 import { HTTP_STATUS, API_ERROR_CODES } from './types';
 
 /**
+ * Revoked access-token registry (in-memory).
+ *
+ * Logout revokes the presented access token for the lifetime of the
+ * process; the shared Redis-backed registry replaces this in the
+ * hardening phase when multiple gateway instances run.
+ */
+const revokedTokens: Set<string> = new Set();
+
+export function revokeToken(token: string): void {
+  revokedTokens.add(token);
+}
+
+export function isTokenRevoked(token: string): boolean {
+  return revokedTokens.has(token);
+}
+
+/**
  * Authentication middleware
  *
  * Verifies JWT token and extracts user context
@@ -36,6 +53,17 @@ export async function authMiddleware(
     }
 
     const token = authHeader.substring(7);
+
+    if (isTokenRevoked(token)) {
+      res.status(HTTP_STATUS.UNAUTHORIZED).json({
+        success: false,
+        error: {
+          code: API_ERROR_CODES.TOKEN_EXPIRED,
+          message: 'Token has been revoked'
+        }
+      });
+      return;
+    }
 
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET || 'dev-secret') as any;
@@ -413,7 +441,9 @@ export function securityHeadersMiddleware(req: Request, res: Response, next: Nex
  *
  * Wraps async route handlers to catch errors
  */
-export function asyncHandler(fn: Function) {
+export function asyncHandler(
+  fn: (req: Request, res: Response, next: NextFunction) => unknown
+) {
   return (req: Request, res: Response, next: NextFunction): void => {
     Promise.resolve(fn(req, res, next)).catch(next);
   };

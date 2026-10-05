@@ -3,7 +3,7 @@
  */
 
 import { Router } from 'express';
-import { authMiddleware, asyncHandler, optionalAuthMiddleware } from '../middleware';
+import { authMiddleware, authorizationMiddleware, asyncHandler, optionalAuthMiddleware } from '../middleware';
 import { AuthController } from '../controllers/AuthController';
 import type { IServiceOrchestrator } from '../../services/orchestrator/types';
 
@@ -21,7 +21,7 @@ export function createAuthRoutes(orchestrator: IServiceOrchestrator): Router {
   router.post('/refresh', asyncHandler((req, res) => controller.refreshToken(req, res)));
 
   // Register (admin only)
-  router.post('/register', authMiddleware, asyncHandler((req, res) => controller.register(req as any, res)));
+  router.post('/register', authMiddleware, authorizationMiddleware('user:create'), asyncHandler((req, res) => controller.register(req as any, res)));
 
   return router;
 }

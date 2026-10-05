@@ -115,14 +115,20 @@ export class InvestigationController extends BaseController {
   async closeInvestigation(req: IAuthenticatedRequest, res: Response): Promise<void> {
     try {
       const { id } = req.params;
-      const { findings, recommendation } = req.body;
+      const { closeReason, conclusion } = req.body;
 
       const investigation = await this.orchestrator.investigationService?.getInvestigation?.(id);
       if (!investigation) { this.notFound(res, 'Investigation'); return; }
 
+      if (!closeReason || String(closeReason).trim() === '') {
+        this.validationError(res, { field: 'closeReason', message: 'Required' });
+        return;
+      }
+
       const closed = await this.orchestrator.investigationService?.closeInvestigation?.(id, {
-        findings,
-        recommendation
+        notes: closeReason,
+        closureCode: conclusion ? 'TRUE_POSITIVE' : undefined,
+        closureNotes: conclusion
       });
 
       if (!closed) {

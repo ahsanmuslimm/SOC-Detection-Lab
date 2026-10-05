@@ -17,6 +17,7 @@ export interface IServiceHealth {
   serviceName: string;
   status: 'healthy' | 'degraded' | 'unhealthy';
   timestamp: Date;
+  responseTime?: number;
   details?: Record<string, any>;
 }
 
@@ -72,7 +73,11 @@ export interface IErrorHandlingService {
 export interface IAuthService {
   authenticate(credentials: any): Promise<string>;
   validateToken(token: string): Promise<boolean>;
-  refreshToken(token: string): Promise<string>;
+  refreshToken(token: string): Promise<any>;
+  /** Issue access + refresh tokens for valid credentials (in-memory auth). */
+  login?(credentials: any): Promise<any>;
+  /** End a session / revoke issued tokens for the user. */
+  logout?(userId: string, sessionId?: string): Promise<void>;
   initialize?(): Promise<void>;
 }
 
@@ -80,6 +85,8 @@ export interface IUserService {
   getUser(id: string): Promise<any>;
   createUser(userData: any): Promise<any>;
   updateUser(id: string, userData: any): Promise<any>;
+  queryUsers?(params?: any): Promise<{ users: any[]; total: number }>;
+  deleteUser?(id: string): Promise<boolean>;
   initialize?(): Promise<void>;
 }
 
@@ -105,6 +112,11 @@ export interface IRBACService {
   hasPermission(role: string, permission: string): boolean;
   getPermissions(role: string): string[];
   addPermission(role: string, permission: string): Promise<void>;
+  getRole?(roleId: string): Promise<any>;
+  getAllRoles?(): Promise<{ roles: any[]; total: number }>;
+  getAllPermissions?(): Promise<{ permissions: any[]; total: number }>;
+  updateRolePermissions?(roleId: string, data: any): Promise<any>;
+  getUserPermissions?(userId: string): Promise<any>;
   initialize?(): Promise<void>;
 }
 
@@ -194,6 +206,67 @@ export interface IMetricsService {
 // SERVICE ORCHESTRATOR INTERFACE
 // ============================================
 
+// ============================================
+// DOMAIN SERVICES (SOC workflows)
+// ============================================
+// In-memory implementations ship with the orchestrator for MVP/v2; the
+// PostgreSQL-backed repositories replace them in the hardening phase.
+
+export interface IAlertDomainService {
+  createAlert(data: any): Promise<any>;
+  getAlert(id: string): Promise<any>;
+  updateAlert(id: string, data: any): Promise<any>;
+  deleteAlert(id: string): Promise<boolean>;
+  getAlertStats?(filters?: any): Promise<any>;
+  initialize?(): Promise<void>;
+}
+
+export interface IQueryDomainService {
+  queryAlerts(params: any): Promise<{ alerts: any[]; total: number }>;
+  initialize?(): Promise<void>;
+}
+
+export interface ICaseDomainService {
+  createCase(data: any): Promise<any>;
+  getCase(id: string): Promise<any>;
+  updateCase(id: string, data: any): Promise<any>;
+  deleteCase(id: string): Promise<boolean>;
+  queryCases?(params?: any): Promise<{ cases: any[]; total: number }>;
+  getCaseStats?(): Promise<any>;
+  initialize?(): Promise<void>;
+}
+
+export interface IDetectionDomainService {
+  createRule(data: any): Promise<any>;
+  getRule(id: string): Promise<any>;
+  updateRule(id: string, data: any): Promise<any>;
+  deleteRule(id: string): Promise<boolean>;
+  queryRules?(params?: any): Promise<{ rules: any[]; total: number }>;
+  testRule?(id: string, data?: any): Promise<any>;
+  deployRule?(id: string): Promise<any>;
+  initialize?(): Promise<void>;
+}
+
+export interface IInvestigationDomainService {
+  createInvestigation(data: any): Promise<any>;
+  getInvestigation(id: string): Promise<any>;
+  updateInvestigation(id: string, data: any): Promise<any>;
+  queryInvestigations?(params?: any): Promise<{ investigations: any[]; total: number }>;
+  getTimeline?(id: string): Promise<any>;
+  getCaseInvestigations?(caseId: string): Promise<any>;
+  closeInvestigation?(id: string, data?: any): Promise<any>;
+  initialize?(): Promise<void>;
+}
+
+export interface IReportDomainService {
+  generateReport(data: any): Promise<any>;
+  getReport(id: string): Promise<any>;
+  updateReport(id: string, data: any): Promise<any>;
+  deleteReport(id: string): Promise<boolean>;
+  queryReports?(params?: any): Promise<{ reports: any[]; total: number }>;
+  initialize?(): Promise<void>;
+}
+
 export interface IServiceOrchestrator {
   // Core Infrastructure
   configService: IConfigService;
@@ -224,6 +297,14 @@ export interface IServiceOrchestrator {
   cacheServiceIntegration: ICacheServiceIntegration;
   configurationService: IConfigurationService;
   metricsService: IMetricsService;
+
+  // Domain Services (SOC workflows)
+  alertService?: IAlertDomainService;
+  queryService?: IQueryDomainService;
+  caseService?: ICaseDomainService;
+  detectionService?: IDetectionDomainService;
+  investigationService?: IInvestigationDomainService;
+  reportService?: IReportDomainService;
 
   // Lifecycle Methods
   initialize(): Promise<void>;
@@ -276,7 +357,15 @@ export const INITIALIZATION_ORDER = [
   'exportService',
   'searchService',
   'queueService',
-  'storageService'
+  'storageService',
+
+  // Phase 5: Domain Services (SOC workflows)
+  'alertService',
+  'queryService',
+  'caseService',
+  'detectionService',
+  'investigationService',
+  'reportService'
 ];
 
 export const SERVICE_NAMES = new Set(INITIALIZATION_ORDER);

@@ -8,6 +8,7 @@ import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { createApiGateway } from '../../gateway';
 import { createOrchestrator } from '../../../services/orchestrator';
 import type { IServiceOrchestrator } from '../../../services/orchestrator/types';
+import { adminAuthHeader, viewerAuthHeader, } from './helpers/auth';
 
 describe('Reports API Integration Tests', () => {
   let orchestrator: IServiceOrchestrator;
@@ -28,10 +29,10 @@ describe('Reports API Integration Tests', () => {
   describe('GET /reports', () => {
     it('should list reports with pagination', async () => {
       const response = await fetch(`${baseUrl}/reports?page=1&pageSize=25`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(200);
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.success).toBe(true);
       expect(data.pagination).toBeDefined();
       expect(Array.isArray(data.items)).toBe(true);
@@ -39,23 +40,23 @@ describe('Reports API Integration Tests', () => {
 
     it('should filter reports by type', async () => {
       const response = await fetch(`${baseUrl}/reports?reportType=daily_summary`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(200);
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.pagination).toBeDefined();
     });
 
     it('should filter reports by status', async () => {
       const response = await fetch(`${baseUrl}/reports?status=generated`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(200);
     });
 
     it('should support date range filtering', async () => {
       const response = await fetch(`${baseUrl}/reports?startDate=2024-01-01&endDate=2024-01-31`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(200);
     });
@@ -67,7 +68,7 @@ describe('Reports API Integration Tests', () => {
 
     it('should support sorting by date', async () => {
       const response = await fetch(`${baseUrl}/reports?sortBy=createdAt&sortOrder=desc`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(200);
     });
@@ -79,7 +80,7 @@ describe('Reports API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           title: 'Daily Security Summary',
@@ -92,7 +93,7 @@ describe('Reports API Integration Tests', () => {
         })
       });
       expect(response.status).toBe(201);
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.success).toBe(true);
       expect(data.data.id).toBeDefined();
     });
@@ -102,14 +103,14 @@ describe('Reports API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           title: 'Missing Type'
         })
       });
       expect(response.status).toBe(422);
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.error.code).toBe('VALIDATION_ERROR');
     });
 
@@ -118,7 +119,7 @@ describe('Reports API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           title: 'Test',
@@ -134,7 +135,7 @@ describe('Reports API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer viewer-token'
+          'Authorization': viewerAuthHeader()
         },
         body: JSON.stringify({
           title: 'Test',
@@ -150,7 +151,7 @@ describe('Reports API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           title: 'Test Report',
@@ -159,7 +160,7 @@ describe('Reports API Integration Tests', () => {
         })
       });
       if (response.status === 201) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         expect(data.data.scope).toBeDefined();
       }
     });
@@ -168,14 +169,14 @@ describe('Reports API Integration Tests', () => {
   describe('GET /reports/:id', () => {
     it('should get report by id', async () => {
       const response = await fetch(`${baseUrl}/reports/report-123`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect([200, 404]).toContain(response.status);
     });
 
     it('should return 404 for non-existent report', async () => {
       const response = await fetch(`${baseUrl}/reports/non-existent-report`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(404);
     });
@@ -187,10 +188,10 @@ describe('Reports API Integration Tests', () => {
 
     it('should include full report content', async () => {
       const response = await fetch(`${baseUrl}/reports/report-123`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       if (response.status === 200) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         expect(data.data.title).toBeDefined();
         expect(data.data.content).toBeDefined();
       }
@@ -203,7 +204,7 @@ describe('Reports API Integration Tests', () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           title: 'Updated Title'
@@ -217,7 +218,7 @@ describe('Reports API Integration Tests', () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           status: 'published'
@@ -231,7 +232,7 @@ describe('Reports API Integration Tests', () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           content: 'Updated report content'
@@ -245,7 +246,7 @@ describe('Reports API Integration Tests', () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer viewer-token'
+          'Authorization': viewerAuthHeader()
         },
         body: JSON.stringify({
           title: 'New Title'
@@ -259,7 +260,7 @@ describe('Reports API Integration Tests', () => {
     it('should delete report', async () => {
       const response = await fetch(`${baseUrl}/reports/report-123`, {
         method: 'DELETE',
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect([204, 404]).toContain(response.status);
     });
@@ -267,7 +268,7 @@ describe('Reports API Integration Tests', () => {
     it('should return 404 for non-existent report', async () => {
       const response = await fetch(`${baseUrl}/reports/non-existent-report`, {
         method: 'DELETE',
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(404);
     });
@@ -275,7 +276,7 @@ describe('Reports API Integration Tests', () => {
     it('should enforce report:delete permission', async () => {
       const response = await fetch(`${baseUrl}/reports/report-123`, {
         method: 'DELETE',
-        headers: { 'Authorization': 'Bearer viewer-token' }
+        headers: { 'Authorization': viewerAuthHeader() }
       });
       expect([204, 403, 404]).toContain(response.status);
     });
@@ -283,7 +284,7 @@ describe('Reports API Integration Tests', () => {
     it('should return 204 on successful deletion', async () => {
       const response = await fetch(`${baseUrl}/reports/report-123`, {
         method: 'DELETE',
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       if (response.status === 204) {
         const text = await response.text();
@@ -298,7 +299,7 @@ describe('Reports API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           title: 'Daily Summary',
@@ -314,7 +315,7 @@ describe('Reports API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           title: 'Weekly Summary',
@@ -330,7 +331,7 @@ describe('Reports API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           title: 'Incident Analysis',
@@ -345,9 +346,9 @@ describe('Reports API Integration Tests', () => {
   describe('Error Handling', () => {
     it('should return consistent error format', async () => {
       const response = await fetch(`${baseUrl}/reports/invalid`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.error).toBeDefined();
       expect(data.error.code).toBeDefined();
       expect(data.error.message).toBeDefined();
@@ -355,7 +356,7 @@ describe('Reports API Integration Tests', () => {
 
     it('should include trace ID in response', async () => {
       const response = await fetch(`${baseUrl}/reports`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.headers.get('X-Trace-Id')).toBeDefined();
     });
@@ -365,7 +366,7 @@ describe('Reports API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: 'invalid json'
       });
@@ -377,7 +378,7 @@ describe('Reports API Integration Tests', () => {
     it('should list reports within 100ms', async () => {
       const start = Date.now();
       await fetch(`${baseUrl}/reports?pageSize=10`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       const duration = Date.now() - start;
       expect(duration).toBeLessThan(100);
@@ -386,7 +387,7 @@ describe('Reports API Integration Tests', () => {
     it('should get single report within 50ms', async () => {
       const start = Date.now();
       await fetch(`${baseUrl}/reports/report-123`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       const duration = Date.now() - start;
       expect(duration).toBeLessThan(100);
@@ -398,7 +399,7 @@ describe('Reports API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           title: 'Test',
@@ -414,24 +415,24 @@ describe('Reports API Integration Tests', () => {
   describe('Security Tests', () => {
     it('should not expose sensitive data in list', async () => {
       const response = await fetch(`${baseUrl}/reports`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       if (response.status === 200) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         expect(JSON.stringify(data)).not.toContain('password');
       }
     });
 
     it('should include security headers', async () => {
       const response = await fetch(`${baseUrl}/reports`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.headers.get('x-content-type-options')).toBeDefined();
     });
 
     it('should enforce CORS', async () => {
       const response = await fetch(`${baseUrl}/reports`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.headers.get('access-control-allow-origin')).toBeDefined();
     });

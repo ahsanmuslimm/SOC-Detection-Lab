@@ -8,6 +8,7 @@ import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { createApiGateway } from '../../gateway';
 import { createOrchestrator } from '../../../services/orchestrator';
 import type { IServiceOrchestrator } from '../../../services/orchestrator/types';
+import { adminAuthHeader, viewerAuthHeader, } from './helpers/auth';
 
 describe('Alert API Integration Tests', () => {
   let orchestrator: IServiceOrchestrator;
@@ -28,17 +29,17 @@ describe('Alert API Integration Tests', () => {
   describe('GET /alerts', () => {
     it('should list alerts with pagination', async () => {
       const response = await fetch(`${baseUrl}/alerts?page=1&pageSize=25`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(200);
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.success).toBe(true);
       expect(data.pagination).toBeDefined();
     });
 
     it('should filter alerts by status', async () => {
       const response = await fetch(`${baseUrl}/alerts?status=open`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(200);
     });
@@ -55,7 +56,7 @@ describe('Alert API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           title: 'Test Alert',
@@ -65,7 +66,7 @@ describe('Alert API Integration Tests', () => {
         })
       });
       expect(response.status).toBe(201);
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.success).toBe(true);
       expect(data.data.id).toBeDefined();
     });
@@ -75,7 +76,7 @@ describe('Alert API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           title: 'Missing Fields'
@@ -83,7 +84,7 @@ describe('Alert API Integration Tests', () => {
         })
       });
       expect(response.status).toBe(422);
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.error.code).toBe('VALIDATION_ERROR');
     });
   });
@@ -91,14 +92,14 @@ describe('Alert API Integration Tests', () => {
   describe('GET /alerts/:id', () => {
     it('should get alert by id', async () => {
       const response = await fetch(`${baseUrl}/alerts/test-id-123`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect([200, 404]).toContain(response.status);
     });
 
     it('should return 404 for non-existent alert', async () => {
       const response = await fetch(`${baseUrl}/alerts/non-existent-id`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(404);
     });
@@ -110,7 +111,7 @@ describe('Alert API Integration Tests', () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           status: 'acknowledged'
@@ -126,7 +127,7 @@ describe('Alert API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           comment: 'Acknowledged for investigation'
@@ -142,7 +143,7 @@ describe('Alert API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           assignToUserId: 'analyst-user-id'
@@ -156,7 +157,7 @@ describe('Alert API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({})
       });
@@ -167,10 +168,10 @@ describe('Alert API Integration Tests', () => {
   describe('GET /alerts/stats/summary', () => {
     it('should get alert statistics', async () => {
       const response = await fetch(`${baseUrl}/alerts/stats/summary`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(200);
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.success).toBe(true);
     });
   });
@@ -181,7 +182,7 @@ describe('Alert API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           alertIds: ['alert-1', 'alert-2'],
@@ -196,7 +197,7 @@ describe('Alert API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           status: 'acknowledged'
@@ -211,7 +212,7 @@ describe('Alert API Integration Tests', () => {
     it('should delete alert', async () => {
       const response = await fetch(`${baseUrl}/alerts/test-id-123`, {
         method: 'DELETE',
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect([204, 404]).toContain(response.status);
     });
@@ -223,7 +224,7 @@ describe('Alert API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer viewer-token' // viewer role
+          'Authorization': viewerAuthHeader() // viewer role
         },
         body: JSON.stringify({
           title: 'Test',
@@ -239,7 +240,7 @@ describe('Alert API Integration Tests', () => {
     it('should list alerts within 100ms', async () => {
       const start = Date.now();
       await fetch(`${baseUrl}/alerts`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       const duration = Date.now() - start;
       expect(duration).toBeLessThan(100);
@@ -251,7 +252,7 @@ describe('Alert API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           title: 'Test',
@@ -267,9 +268,9 @@ describe('Alert API Integration Tests', () => {
   describe('Error Handling', () => {
     it('should return consistent error format', async () => {
       const response = await fetch(`${baseUrl}/alerts/invalid`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.error).toBeDefined();
       expect(data.error.code).toBeDefined();
       expect(data.error.message).toBeDefined();

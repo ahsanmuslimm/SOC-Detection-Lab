@@ -8,8 +8,8 @@
  */
 
 import { create } from 'zustand';
+import type { IUser, UserRole } from '@app-types';
 import { devtools, persist } from 'zustand/middleware';
-import type { IUser, IAuthResponse, UserRole } from '@types/index';
 
 interface AuthState {
   // State
@@ -97,7 +97,7 @@ export const useAuthStore = create<AuthState>()(
         },
 
         // Login action (will be connected to API)
-        login: async (email: string, password: string) => {
+        login: async (email: string, _password: string) => {
           const state = get();
           state.setLoading(true);
           state.setError(null);

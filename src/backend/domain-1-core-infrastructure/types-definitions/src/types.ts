@@ -181,7 +181,7 @@ export interface IEntity {
   value: string;
   firstSeen: Date;
   lastSeen: Date;
-  threat Level?: ThreatLevel;
+  threatLevel?: ThreatLevel;
   metadata: Record<string, unknown>;
 }
 

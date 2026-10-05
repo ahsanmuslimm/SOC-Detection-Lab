@@ -1,0 +1,64 @@
+# SOC Detection Lab — Local/Production Compose Stack
+#
+# Usage:
+#   docker compose up -d          # start app + postgres + redis
+#   docker compose logs -f app    # follow application logs
+#
+# The API serves the built frontend from the same container on port 3000.
+
+services:
+  app:
+    build: .
+    container_name: soc-lab-app
+    ports:
+      - '3000:3000'
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3001}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-soc}:${POSTGRES_PASSWORD:-soc}@postgres:5432/${POSTGRES_DB:-soclab}
+      REDIS_URL: redis://redis:6379
+      SERVE_STATIC: 'true'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: soc-lab-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-soc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-soc}
+      POSTGRES_DB: ${POSTGRES_DB:-soclab}
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-soc} -d ${POSTGRES_DB:-soclab}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: soc-lab-redis
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  redis-data:

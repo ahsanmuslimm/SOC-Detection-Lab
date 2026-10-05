@@ -87,3 +87,4 @@ pnpm-debug.log
 
 # OS specific
 .env.local.bak
+.tsbuildinfo*

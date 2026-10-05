@@ -8,6 +8,7 @@ import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { createApiGateway } from '../../gateway';
 import { createOrchestrator } from '../../../services/orchestrator';
 import type { IServiceOrchestrator } from '../../../services/orchestrator/types';
+import { adminAuthHeader, viewerAuthHeader, } from './helpers/auth';
 
 describe('Cases API Integration Tests', () => {
   let orchestrator: IServiceOrchestrator;
@@ -28,10 +29,10 @@ describe('Cases API Integration Tests', () => {
   describe('GET /cases', () => {
     it('should list cases with pagination', async () => {
       const response = await fetch(`${baseUrl}/cases?page=1&pageSize=25`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(200);
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.success).toBe(true);
       expect(data.pagination).toBeDefined();
       expect(Array.isArray(data.items)).toBe(true);
@@ -39,26 +40,26 @@ describe('Cases API Integration Tests', () => {
 
     it('should filter cases by status', async () => {
       const response = await fetch(`${baseUrl}/cases?status=open`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(200);
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.pagination).toBeDefined();
     });
 
     it('should filter cases by severity', async () => {
       const response = await fetch(`${baseUrl}/cases?severity=critical`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(200);
     });
 
     it('should support custom page size', async () => {
       const response = await fetch(`${baseUrl}/cases?page=1&pageSize=50`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(200);
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.pagination.pageSize).toBeLessThanOrEqual(100);
     });
 
@@ -69,9 +70,9 @@ describe('Cases API Integration Tests', () => {
 
     it('should include pagination metadata', async () => {
       const response = await fetch(`${baseUrl}/cases?page=1&pageSize=25`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.pagination).toHaveProperty('page');
       expect(data.pagination).toHaveProperty('pageSize');
       expect(data.pagination).toHaveProperty('total');
@@ -86,7 +87,7 @@ describe('Cases API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           title: 'Data Exfiltration Investigation',
@@ -96,7 +97,7 @@ describe('Cases API Integration Tests', () => {
         })
       });
       expect(response.status).toBe(201);
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.success).toBe(true);
       expect(data.data.id).toBeDefined();
     });
@@ -106,7 +107,7 @@ describe('Cases API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           title: 'Missing Severity'
@@ -114,7 +115,7 @@ describe('Cases API Integration Tests', () => {
         })
       });
       expect(response.status).toBe(422);
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.error.code).toBe('VALIDATION_ERROR');
     });
 
@@ -123,7 +124,7 @@ describe('Cases API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           title: '',
@@ -139,7 +140,7 @@ describe('Cases API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer viewer-token'
+          'Authorization': viewerAuthHeader()
         },
         body: JSON.stringify({
           title: 'Test',
@@ -155,7 +156,7 @@ describe('Cases API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: 'not valid json'
       });
@@ -166,14 +167,14 @@ describe('Cases API Integration Tests', () => {
   describe('GET /cases/:id', () => {
     it('should get case by id', async () => {
       const response = await fetch(`${baseUrl}/cases/case-123`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect([200, 404]).toContain(response.status);
     });
 
     it('should return 404 for non-existent case', async () => {
       const response = await fetch(`${baseUrl}/cases/non-existent-case-id`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(404);
     });
@@ -185,7 +186,7 @@ describe('Cases API Integration Tests', () => {
 
     it('should include X-Trace-Id header', async () => {
       const response = await fetch(`${baseUrl}/cases/case-123`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.headers.get('X-Trace-Id')).toBeDefined();
     });
@@ -197,7 +198,7 @@ describe('Cases API Integration Tests', () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           status: 'in_progress'
@@ -211,7 +212,7 @@ describe('Cases API Integration Tests', () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           description: 'Updated investigation findings'
@@ -225,7 +226,7 @@ describe('Cases API Integration Tests', () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer viewer-token'
+          'Authorization': viewerAuthHeader()
         },
         body: JSON.stringify({
           status: 'closed'
@@ -239,7 +240,7 @@ describe('Cases API Integration Tests', () => {
     it('should delete case', async () => {
       const response = await fetch(`${baseUrl}/cases/case-123`, {
         method: 'DELETE',
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect([204, 404]).toContain(response.status);
     });
@@ -247,7 +248,7 @@ describe('Cases API Integration Tests', () => {
     it('should return 404 for non-existent case', async () => {
       const response = await fetch(`${baseUrl}/cases/non-existent-case`, {
         method: 'DELETE',
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(404);
     });
@@ -255,7 +256,7 @@ describe('Cases API Integration Tests', () => {
     it('should enforce case:delete permission', async () => {
       const response = await fetch(`${baseUrl}/cases/case-123`, {
         method: 'DELETE',
-        headers: { 'Authorization': 'Bearer viewer-token' }
+        headers: { 'Authorization': viewerAuthHeader() }
       });
       expect([204, 403, 404]).toContain(response.status);
     });
@@ -263,7 +264,7 @@ describe('Cases API Integration Tests', () => {
     it('should return 204 on successful deletion', async () => {
       const response = await fetch(`${baseUrl}/cases/case-123`, {
         method: 'DELETE',
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       if (response.status === 204) {
         const text = await response.text();
@@ -278,7 +279,7 @@ describe('Cases API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           assignToUserId: 'analyst-user-1'
@@ -292,7 +293,7 @@ describe('Cases API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({})
       });
@@ -304,7 +305,7 @@ describe('Cases API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer viewer-token'
+          'Authorization': viewerAuthHeader()
         },
         body: JSON.stringify({
           assignToUserId: 'analyst-1'
@@ -317,18 +318,18 @@ describe('Cases API Integration Tests', () => {
   describe('GET /cases/:id/investigations', () => {
     it('should get case investigations', async () => {
       const response = await fetch(`${baseUrl}/cases/case-123/investigations`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect([200, 404]).toContain(response.status);
       if (response.status === 200) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         expect(Array.isArray(data.data || data)).toBe(true);
       }
     });
 
     it('should return 404 for non-existent case', async () => {
       const response = await fetch(`${baseUrl}/cases/non-existent-case/investigations`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(404);
     });
@@ -342,18 +343,18 @@ describe('Cases API Integration Tests', () => {
   describe('GET /cases/stats/summary', () => {
     it('should get case statistics', async () => {
       const response = await fetch(`${baseUrl}/cases/stats/summary`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(200);
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.success).toBe(true);
     });
 
     it('should include stats breakdown', async () => {
       const response = await fetch(`${baseUrl}/cases/stats/summary`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.data).toBeDefined();
     });
 
@@ -366,9 +367,9 @@ describe('Cases API Integration Tests', () => {
   describe('Error Handling', () => {
     it('should return consistent error format', async () => {
       const response = await fetch(`${baseUrl}/cases/invalid`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.error).toBeDefined();
       expect(data.error.code).toBeDefined();
       expect(data.error.message).toBeDefined();
@@ -376,9 +377,9 @@ describe('Cases API Integration Tests', () => {
 
     it('should include error timestamp', async () => {
       const response = await fetch(`${baseUrl}/cases/invalid`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.error.timestamp).toBeDefined();
     });
   });
@@ -387,7 +388,7 @@ describe('Cases API Integration Tests', () => {
     it('should list cases within 100ms', async () => {
       const start = Date.now();
       await fetch(`${baseUrl}/cases?pageSize=10`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       const duration = Date.now() - start;
       expect(duration).toBeLessThan(100);
@@ -396,7 +397,7 @@ describe('Cases API Integration Tests', () => {
     it('should get single case within 50ms', async () => {
       const start = Date.now();
       await fetch(`${baseUrl}/cases/case-123`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       const duration = Date.now() - start;
       expect(duration).toBeLessThan(100);
@@ -406,14 +407,14 @@ describe('Cases API Integration Tests', () => {
   describe('Security Headers', () => {
     it('should include CORS headers', async () => {
       const response = await fetch(`${baseUrl}/cases`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.headers.get('access-control-allow-origin')).toBeDefined();
     });
 
     it('should include security headers', async () => {
       const response = await fetch(`${baseUrl}/cases`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.headers.get('x-content-type-options')).toBeDefined();
     });

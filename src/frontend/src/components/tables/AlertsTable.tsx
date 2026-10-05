@@ -13,12 +13,10 @@ import {
   ChevronDown,
   Check,
   Trash2,
-  Edit,
-  MoreVertical,
   ExternalLink,
 } from 'lucide-react';
 import { useAlerts } from '@hooks/useAlerts';
-import type { IAlert, AlertSeverity, AlertStatus } from '@types/index';
+import type { IAlert, AlertSeverity, AlertStatus } from '@app-types';
 import clsx from 'clsx';
 
 interface AlertsTableProps {

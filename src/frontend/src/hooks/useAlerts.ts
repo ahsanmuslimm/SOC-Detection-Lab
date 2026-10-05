@@ -9,7 +9,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { alertService } from '@services/alertService';
-import type { IAlert, IAlertStats, IPaginatedResponse } from '@types/index';
+import type { IAlert } from '@app-types';
 import toast from 'react-hot-toast';
 
 interface UseAlertsOptions {

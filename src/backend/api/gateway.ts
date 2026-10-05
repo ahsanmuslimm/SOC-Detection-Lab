@@ -10,10 +10,22 @@ import express, { Express, Request, Response, NextFunction } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
+import { existsSync } from 'fs';
+import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import type { IServiceOrchestrator } from '../services/orchestrator/types';
 import type { IApiResponse, IErrorResponse, IHealthCheckResponse, IRequestContext } from './types';
 import { HTTP_STATUS, API_ERROR_CODES, API_BASE_PATH } from './types';
+import {
+  createAlertRoutes,
+  createCaseRoutes,
+  createRuleRoutes,
+  createInvestigationRoutes,
+  createUserRoutes,
+  createReportRoutes,
+  createAuthRoutes,
+  createRBACRoutes
+} from './routes';
 
 /**
  * API Gateway interface
@@ -47,7 +59,9 @@ export class ApiGateway implements IApiGateway {
    */
   private setupMiddleware(): void {
     // Security middleware
-    this.app.use(helmet());
+    this.app.use(helmet({
+      frameguard: { action: 'deny' }
+    }));
     this.app.use(cors({
       origin: process.env.CORS_ORIGIN || 'http://localhost:3001',
       credentials: true,
@@ -55,10 +69,11 @@ export class ApiGateway implements IApiGateway {
       allowedHeaders: ['Content-Type', 'Authorization']
     }));
 
-    // Rate limiting
+    // Rate limiting (relaxed under test: contract suites issue hundreds of
+    // sequential requests from one host within a single window)
     const limiter = rateLimit({
       windowMs: 15 * 60 * 1000, // 15 minutes
-      max: 100, // 100 requests per window
+      max: process.env.NODE_ENV === 'test' ? 1000000 : 100,
       message: 'Too many requests from this IP',
       standardHeaders: true,
       legacyHeaders: false
@@ -172,22 +187,30 @@ export class ApiGateway implements IApiGateway {
       });
     });
 
-    // API routes (placeholder - will be implemented in controllers)
-    this.app.get(`${API_BASE_PATH}/alerts`, (req: Request, res: Response) => {
-      this.handleNotImplemented(res);
-    });
+    // Domain routes — all business endpoints mounted under /api/v1
+    this.app.use(`${API_BASE_PATH}/alerts`, createAlertRoutes(this.orchestrator));
+    this.app.use(`${API_BASE_PATH}/cases`, createCaseRoutes(this.orchestrator));
+    this.app.use(`${API_BASE_PATH}/rules`, createRuleRoutes(this.orchestrator));
+    this.app.use(`${API_BASE_PATH}/detections`, createRuleRoutes(this.orchestrator));
+    this.app.use(`${API_BASE_PATH}/investigations`, createInvestigationRoutes(this.orchestrator));
+    this.app.use(`${API_BASE_PATH}/users`, createUserRoutes(this.orchestrator));
+    this.app.use(`${API_BASE_PATH}/reports`, createReportRoutes(this.orchestrator));
+    this.app.use(`${API_BASE_PATH}/auth`, createAuthRoutes(this.orchestrator));
+    this.app.use(`${API_BASE_PATH}/rbac`, createRBACRoutes(this.orchestrator));
 
-    this.app.post(`${API_BASE_PATH}/alerts`, (req: Request, res: Response) => {
-      this.handleNotImplemented(res);
-    });
-
-    this.app.get(`${API_BASE_PATH}/cases`, (req: Request, res: Response) => {
-      this.handleNotImplemented(res);
-    });
-
-    this.app.post(`${API_BASE_PATH}/cases`, (req: Request, res: Response) => {
-      this.handleNotImplemented(res);
-    });
+    // Static frontend (single-container deployment): serve the built SPA
+    // when a ./public directory exists, with history-API fallback.
+    const publicDir = join(process.cwd(), 'public');
+    if (process.env.SERVE_STATIC !== 'false' && existsSync(publicDir)) {
+      this.app.use(express.static(publicDir));
+      this.app.get('*', (req: Request, res: Response, next: NextFunction) => {
+        if (req.path.startsWith(`${API_BASE_PATH}/`) || req.path.startsWith('/api/')) {
+          next();
+          return;
+        }
+        res.sendFile(join(publicDir, 'index.html'));
+      });
+    }
 
     // 404 handler
     this.app.use((req: Request, res: Response) => {
@@ -221,7 +244,7 @@ export class ApiGateway implements IApiGateway {
         stack: err.stack
       });
 
-      const statusCode = err.statusCode || HTTP_STATUS.INTERNAL_ERROR;
+      const statusCode = err.statusCode || err.status || HTTP_STATUS.INTERNAL_ERROR;
       const errorCode = err.code || API_ERROR_CODES.INTERNAL_ERROR;
 
       res.status(statusCode).json(
@@ -320,19 +343,6 @@ export class ApiGateway implements IApiGateway {
       timestamp: new Date().toISOString(),
       details
     };
-  }
-
-  /**
-   * Handle not implemented endpoints
-   */
-  private handleNotImplemented(res: Response): void {
-    res.status(HTTP_STATUS.NOT_FOUND).json({
-      success: false,
-      error: {
-        code: 'NOT_IMPLEMENTED',
-        message: 'This endpoint is not yet implemented'
-      }
-    });
   }
 }
 

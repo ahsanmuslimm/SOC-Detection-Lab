@@ -56,6 +56,7 @@ export abstract class BaseController {
     const totalPages = Math.ceil(total / pageSize);
 
     const response: IPaginatedResponse<T> = {
+      success: true,
       items,
       pagination: {
         page,

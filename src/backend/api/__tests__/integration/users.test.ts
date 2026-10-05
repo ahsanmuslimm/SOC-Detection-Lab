@@ -8,6 +8,7 @@ import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { createApiGateway } from '../../gateway';
 import { createOrchestrator } from '../../../services/orchestrator';
 import type { IServiceOrchestrator } from '../../../services/orchestrator/types';
+import { adminAuthHeader, analystAuthHeader, } from './helpers/auth';
 
 describe('Users API Integration Tests', () => {
   let orchestrator: IServiceOrchestrator;
@@ -28,10 +29,10 @@ describe('Users API Integration Tests', () => {
   describe('GET /users', () => {
     it('should list users with pagination', async () => {
       const response = await fetch(`${baseUrl}/users?page=1&pageSize=25`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(200);
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.success).toBe(true);
       expect(data.pagination).toBeDefined();
       expect(Array.isArray(data.items)).toBe(true);
@@ -39,23 +40,23 @@ describe('Users API Integration Tests', () => {
 
     it('should filter users by role', async () => {
       const response = await fetch(`${baseUrl}/users?role=analyst`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(200);
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.pagination).toBeDefined();
     });
 
     it('should filter users by status', async () => {
       const response = await fetch(`${baseUrl}/users?status=active`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(200);
     });
 
     it('should support search by name', async () => {
       const response = await fetch(`${baseUrl}/users?search=john`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(200);
     });
@@ -67,7 +68,7 @@ describe('Users API Integration Tests', () => {
 
     it('should enforce user:read permission', async () => {
       const response = await fetch(`${baseUrl}/users`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect([200, 403]).toContain(response.status);
     });
@@ -79,7 +80,7 @@ describe('Users API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer admin-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           email: 'analyst@soc.local',
@@ -89,7 +90,7 @@ describe('Users API Integration Tests', () => {
         })
       });
       expect(response.status).toBe(201);
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.success).toBe(true);
       expect(data.data.id).toBeDefined();
     });
@@ -99,14 +100,14 @@ describe('Users API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer admin-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           firstName: 'Missing Email'
         })
       });
       expect(response.status).toBe(422);
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.error.code).toBe('VALIDATION_ERROR');
     });
 
@@ -115,7 +116,7 @@ describe('Users API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer admin-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           email: 'invalid-email',
@@ -132,7 +133,7 @@ describe('Users API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer analyst-token'
+          'Authorization': analystAuthHeader()
         },
         body: JSON.stringify({
           email: 'new@soc.local',
@@ -149,7 +150,7 @@ describe('Users API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer admin-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           email: 'duplicate@soc.local',
@@ -164,7 +165,7 @@ describe('Users API Integration Tests', () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': 'Bearer admin-token'
+            'Authorization': adminAuthHeader()
           },
           body: JSON.stringify({
             email: 'duplicate@soc.local',
@@ -181,14 +182,14 @@ describe('Users API Integration Tests', () => {
   describe('GET /users/:id', () => {
     it('should get user by id', async () => {
       const response = await fetch(`${baseUrl}/users/user-123`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect([200, 404]).toContain(response.status);
     });
 
     it('should return 404 for non-existent user', async () => {
       const response = await fetch(`${baseUrl}/users/non-existent-user`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(404);
     });
@@ -200,10 +201,10 @@ describe('Users API Integration Tests', () => {
 
     it('should include user details', async () => {
       const response = await fetch(`${baseUrl}/users/user-123`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       if (response.status === 200) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         expect(data.data.email).toBeDefined();
         expect(data.data.role).toBeDefined();
       }
@@ -216,7 +217,7 @@ describe('Users API Integration Tests', () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           firstName: 'Updated',
@@ -231,7 +232,7 @@ describe('Users API Integration Tests', () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer admin-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           role: 'manager'
@@ -245,7 +246,7 @@ describe('Users API Integration Tests', () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer admin-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           status: 'inactive'
@@ -259,7 +260,7 @@ describe('Users API Integration Tests', () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer analyst-token'
+          'Authorization': analystAuthHeader()
         },
         body: JSON.stringify({
           role: 'admin'
@@ -273,7 +274,7 @@ describe('Users API Integration Tests', () => {
     it('should delete user', async () => {
       const response = await fetch(`${baseUrl}/users/user-123`, {
         method: 'DELETE',
-        headers: { 'Authorization': 'Bearer admin-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect([204, 404]).toContain(response.status);
     });
@@ -281,7 +282,7 @@ describe('Users API Integration Tests', () => {
     it('should return 404 for non-existent user', async () => {
       const response = await fetch(`${baseUrl}/users/non-existent-user`, {
         method: 'DELETE',
-        headers: { 'Authorization': 'Bearer admin-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(404);
     });
@@ -289,7 +290,7 @@ describe('Users API Integration Tests', () => {
     it('should enforce user:delete permission', async () => {
       const response = await fetch(`${baseUrl}/users/user-123`, {
         method: 'DELETE',
-        headers: { 'Authorization': 'Bearer analyst-token' }
+        headers: { 'Authorization': analystAuthHeader() }
       });
       expect([204, 403, 404]).toContain(response.status);
     });
@@ -297,7 +298,7 @@ describe('Users API Integration Tests', () => {
     it('should return 204 on successful deletion', async () => {
       const response = await fetch(`${baseUrl}/users/user-123`, {
         method: 'DELETE',
-        headers: { 'Authorization': 'Bearer admin-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       if (response.status === 204) {
         const text = await response.text();
@@ -309,10 +310,10 @@ describe('Users API Integration Tests', () => {
   describe('GET /users/me/profile', () => {
     it('should get current user profile', async () => {
       const response = await fetch(`${baseUrl}/users/me/profile`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(200);
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.data.email).toBeDefined();
     });
 
@@ -323,20 +324,20 @@ describe('Users API Integration Tests', () => {
 
     it('should include user permissions', async () => {
       const response = await fetch(`${baseUrl}/users/me/profile`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       if (response.status === 200) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         expect(data.data.permissions).toBeDefined();
       }
     });
 
     it('should include user roles', async () => {
       const response = await fetch(`${baseUrl}/users/me/profile`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       if (response.status === 200) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         expect(data.data.role).toBeDefined();
       }
     });
@@ -345,9 +346,9 @@ describe('Users API Integration Tests', () => {
   describe('Error Handling', () => {
     it('should return consistent error format', async () => {
       const response = await fetch(`${baseUrl}/users/invalid`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.error).toBeDefined();
       expect(data.error.code).toBeDefined();
       expect(data.error.message).toBeDefined();
@@ -355,7 +356,7 @@ describe('Users API Integration Tests', () => {
 
     it('should include trace ID in response', async () => {
       const response = await fetch(`${baseUrl}/users`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.headers.get('X-Trace-Id')).toBeDefined();
     });
@@ -365,7 +366,7 @@ describe('Users API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer admin-token'
+          'Authorization': adminAuthHeader()
         },
         body: 'invalid json'
       });
@@ -377,7 +378,7 @@ describe('Users API Integration Tests', () => {
     it('should list users within 100ms', async () => {
       const start = Date.now();
       await fetch(`${baseUrl}/users?pageSize=10`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       const duration = Date.now() - start;
       expect(duration).toBeLessThan(100);
@@ -386,7 +387,7 @@ describe('Users API Integration Tests', () => {
     it('should get single user within 50ms', async () => {
       const start = Date.now();
       await fetch(`${baseUrl}/users/user-123`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       const duration = Date.now() - start;
       expect(duration).toBeLessThan(100);
@@ -395,7 +396,7 @@ describe('Users API Integration Tests', () => {
     it('should get profile within 50ms', async () => {
       const start = Date.now();
       await fetch(`${baseUrl}/users/me/profile`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       const duration = Date.now() - start;
       expect(duration).toBeLessThan(100);
@@ -405,10 +406,10 @@ describe('Users API Integration Tests', () => {
   describe('Security Tests', () => {
     it('should mask sensitive user data', async () => {
       const response = await fetch(`${baseUrl}/users`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       if (response.status === 200) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         // Verify passwords are never returned
         expect(JSON.stringify(data)).not.toContain('password');
       }
@@ -416,14 +417,14 @@ describe('Users API Integration Tests', () => {
 
     it('should include security headers', async () => {
       const response = await fetch(`${baseUrl}/users`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.headers.get('x-content-type-options')).toBeDefined();
     });
 
     it('should enforce RBAC for list operation', async () => {
       const response = await fetch(`${baseUrl}/users`, {
-        headers: { 'Authorization': 'Bearer analyst-token' }
+        headers: { 'Authorization': analystAuthHeader() }
       });
       expect([200, 403]).toContain(response.status);
     });

@@ -2,7 +2,7 @@
  * Service Orchestrator - Unit Tests
  */
 
-import { ServiceOrchestrator, createOrchestrator, getOrchestrator, setOrchestrator } from '../../index';
+import { createOrchestrator, getOrchestrator, setOrchestrator } from '../../index';
 import { IServiceOrchestrator } from '../../types';
 
 describe('Service Orchestrator', () => {

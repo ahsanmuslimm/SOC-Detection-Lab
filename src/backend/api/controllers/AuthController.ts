@@ -6,6 +6,7 @@ import { Response } from 'express';
 import type { IAuthenticatedRequest, ILoginRequest, IRegisterRequest, ILoginResponse } from '../types';
 import { HTTP_STATUS } from '../types';
 import { BaseController } from './BaseController';
+import { revokeToken } from '../middleware';
 import type { IServiceOrchestrator } from '../../services/orchestrator/types';
 
 export class AuthController extends BaseController {
@@ -13,14 +14,20 @@ export class AuthController extends BaseController {
 
   async login(req: any, res: Response): Promise<void> {
     try {
-      const { username, password, rememberMe } = req.body as ILoginRequest;
+      const { email, username, password, rememberMe } = req.body as ILoginRequest & { email?: string };
 
-      if (!username || !password) {
-        this.validationError(res, { fields: ['username', 'password'] });
+      if ((!email && !username) || !password) {
+        this.validationError(res, { fields: ['email', 'password'], message: 'Missing required fields' });
+        return;
+      }
+
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email))) {
+        this.validationError(res, { field: 'email', message: 'Invalid email format' });
         return;
       }
 
       const result = await this.orchestrator.authService?.login?.({
+        email,
         username,
         password,
         rememberMe,
@@ -29,7 +36,7 @@ export class AuthController extends BaseController {
       });
 
       if (!result) {
-        this.error(res, 'INVALID_CREDENTIALS', 'Invalid username or password', HTTP_STATUS.UNAUTHORIZED);
+        this.error(res, 'AUTHENTICATION_FAILED', 'Invalid credentials', HTTP_STATUS.UNAUTHORIZED);
         return;
       }
 
@@ -51,6 +58,12 @@ export class AuthController extends BaseController {
       const { id: sessionId } = req.body;
 
       await this.orchestrator.authService?.logout?.(req.user.id, sessionId);
+
+      // Revoke the presented access token so it cannot be reused.
+      const authHeader = req.headers.authorization;
+      if (authHeader?.startsWith('Bearer ')) {
+        revokeToken(authHeader.substring(7));
+      }
 
       await this.orchestrator.auditService?.log?.({
         actor: req.user.id,
@@ -77,7 +90,7 @@ export class AuthController extends BaseController {
       const result = await this.orchestrator.authService?.refreshToken?.(refreshToken);
 
       if (!result) {
-        this.error(res, 'TOKEN_INVALID', 'Invalid or expired refresh token', HTTP_STATUS.UNAUTHORIZED);
+        this.error(res, 'INVALID_REFRESH_TOKEN', 'Invalid or expired refresh token', HTTP_STATUS.UNAUTHORIZED);
         return;
       }
 
@@ -89,18 +102,39 @@ export class AuthController extends BaseController {
 
   async register(req: IAuthenticatedRequest, res: Response): Promise<void> {
     try {
-      const { username, email, password, fullName } = req.body as IRegisterRequest;
+      const { username, email, password, firstName, lastName, fullName, role } = req.body as IRegisterRequest & {
+        firstName?: string;
+        lastName?: string;
+      };
 
-      if (!username || !email || !password) {
-        this.validationError(res, { fields: ['username', 'email', 'password'] });
+      if (!email || !password) {
+        this.validationError(res, { fields: ['email', 'password'], message: 'Missing required fields' });
         return;
       }
 
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email))) {
+        this.validationError(res, { field: 'email', message: 'Invalid email format' });
+        return;
+      }
+
+      if (String(password).length < 8 || !/[A-Za-z]/.test(String(password)) || !/[0-9]/.test(String(password))) {
+        this.validationError(res, {
+          field: 'password',
+          message: 'Password must be at least 8 characters and contain letters and numbers'
+        });
+        return;
+      }
+
+      const derivedUsername = username || String(email).split('@')[0];
+
       const user = await this.orchestrator.userService?.createUser?.({
-        username,
+        username: derivedUsername,
         email,
         password,
-        fullName
+        fullName: fullName || [firstName, lastName].filter(Boolean).join(' '),
+        firstName,
+        lastName,
+        role
       });
 
       if (!user) {

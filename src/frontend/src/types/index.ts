@@ -47,9 +47,12 @@ export interface IPaginatedResponse<T> {
 export interface IUser {
   id: string;
   email: string;
+  username?: string;
+  fullName?: string;
   firstName: string;
   lastName: string;
   role: UserRole;
+  status?: string;
   avatar?: string;
   lastLogin?: string;
   createdAt: string;
@@ -115,6 +118,8 @@ export interface ICase {
   description: string;
   status: CaseStatus;
   severity: CaseSeverity;
+  caseNumber?: string;
+  caseType?: string;
   createdBy: string;
   assignedTo?: string;
   createdAt: string;
@@ -143,7 +148,8 @@ export interface IInvestigation {
   description: string;
   status: InvestigationStatus;
   priority: InvestigationPriority;
-  caseId: string;
+  severity?: string;
+  caseId?: string;
   assignedTo?: string;
   createdAt: string;
   updatedAt: string;
@@ -154,11 +160,14 @@ export interface IInvestigation {
 }
 
 export interface ITimelineEvent {
-  id: string;
+  id?: string;
   timestamp: string;
-  type: 'alert' | 'evidence' | 'comment' | 'status_change';
+  type: string;
   description: string;
-  actor: string;
+  source?: string;
+  actor?: string;
+  alertId?: string;
+  caseId?: string;
   details?: unknown;
 }
 
@@ -226,9 +235,18 @@ export interface IAuditLog {
 
 export interface IAlertStats {
   total: number;
-  bySeverity: Record<AlertSeverity, number>;
-  byStatus: Record<AlertStatus, number>;
-  trend: ITrendData[];
+  open?: number;
+  acknowledged?: number;
+  resolved?: number;
+  closed?: number;
+  critical?: number;
+  high?: number;
+  medium?: number;
+  low?: number;
+  bySeverity?: Record<string, number>;
+  byStatus?: Record<string, number>;
+  trend?: ITrendData[];
+  lastUpdated?: string;
 }
 
 export interface ICaseStats {
@@ -334,22 +352,10 @@ export interface IFilter {
 // ============================================================================
 
 export interface IUserProfile {
-  user: IUser;
+  id: string;
+  username: string;
+  email: string;
+  role: string;
+  roleId?: string;
   permissions: string[];
-  roles: string[];
-  preferences: {
-    theme: 'light' | 'dark' | 'auto';
-    itemsPerPage: number;
-    notifications: {
-      email: boolean;
-      inApp: boolean;
-      critical: boolean;
-    };
-  };
-  apiKeys?: {
-    id: string;
-    name: string;
-    lastUsed?: string;
-    createdAt: string;
-  }[];
 }

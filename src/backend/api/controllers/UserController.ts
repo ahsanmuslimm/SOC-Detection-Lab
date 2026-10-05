@@ -14,12 +14,16 @@ export class UserController extends BaseController {
   async listUsers(req: IAuthenticatedRequest, res: Response): Promise<void> {
     try {
       const { page, pageSize, limit, offset } = this.getPaginationParams(req);
-      const roleFilter = req.query.role as string;
+
+      const filters: Record<string, any> = {};
+      if (req.query.role) filters.role = req.query.role;
+      if (req.query.status) filters.status = req.query.status;
+      if (req.query.search) filters.search = req.query.search;
 
       const result = await this.orchestrator.userService?.queryUsers?.({
         limit,
         offset,
-        roleFilter
+        filters
       });
 
       const users = (result?.users || []) as IUserResponse[];
@@ -31,18 +35,29 @@ export class UserController extends BaseController {
 
   async createUser(req: IAuthenticatedRequest, res: Response): Promise<void> {
     try {
-      const { username, email, password, fullName } = req.body;
+      const { username, email, password, firstName, lastName, fullName, role } = req.body;
 
-      if (!username || !email || !password) {
-        this.validationError(res, { fields: ['username', 'email', 'password'] });
+      if (!email || !firstName) {
+        this.validationError(res, { fields: ['email', 'firstName'], message: 'Missing required fields' });
         return;
       }
 
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email))) {
+        this.validationError(res, { field: 'email', message: 'Invalid email format' });
+        return;
+      }
+
+      const derivedUsername = username || String(email).split('@')[0];
+      const derivedFullName = fullName || [firstName, lastName].filter(Boolean).join(' ');
+
       const user = await this.orchestrator.userService?.createUser?.({
-        username,
+        username: derivedUsername,
         email,
         password,
-        fullName
+        fullName: derivedFullName,
+        firstName,
+        lastName,
+        role
       });
 
       if (!user) {
@@ -138,12 +153,21 @@ export class UserController extends BaseController {
 
   async getCurrentUser(req: IAuthenticatedRequest, res: Response): Promise<void> {
     try {
-      const user = await this.orchestrator.userService?.getUser?.(req.user.id);
-      if (!user) {
-        this.error(res, 'USER_NOT_FOUND', 'Current user not found');
-        return;
-      }
-      this.success(res, user);
+      // Profile is derived from the verified token claims so it always
+      // matches the authenticated principal, with permissions from RBAC.
+      const permissions =
+        (await this.orchestrator.rbacService?.getUserPermissions?.(req.user.id)) ??
+        (await this.orchestrator.rbacService?.getPermissions?.(String(req.user.roleId || req.user.role || ''))) ??
+        [];
+
+      this.success(res, {
+        id: req.user.id,
+        username: req.user.username,
+        email: req.user.email,
+        role: req.user.role,
+        roleId: req.user.roleId,
+        permissions
+      });
     } catch (error: any) {
       this.error(res, 'GET_CURRENT_USER_FAILED', error.message, HTTP_STATUS.INTERNAL_ERROR);
     }

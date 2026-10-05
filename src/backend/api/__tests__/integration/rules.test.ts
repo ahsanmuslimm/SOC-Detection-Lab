@@ -8,6 +8,7 @@ import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { createApiGateway } from '../../gateway';
 import { createOrchestrator } from '../../../services/orchestrator';
 import type { IServiceOrchestrator } from '../../../services/orchestrator/types';
+import { adminAuthHeader, viewerAuthHeader, } from './helpers/auth';
 
 describe('Detection Rules API Integration Tests', () => {
   let orchestrator: IServiceOrchestrator;
@@ -28,10 +29,10 @@ describe('Detection Rules API Integration Tests', () => {
   describe('GET /rules', () => {
     it('should list detection rules with pagination', async () => {
       const response = await fetch(`${baseUrl}/rules?page=1&pageSize=25`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(200);
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.success).toBe(true);
       expect(data.pagination).toBeDefined();
       expect(Array.isArray(data.items)).toBe(true);
@@ -39,23 +40,23 @@ describe('Detection Rules API Integration Tests', () => {
 
     it('should filter rules by status', async () => {
       const response = await fetch(`${baseUrl}/rules?status=active`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(200);
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.pagination).toBeDefined();
     });
 
     it('should filter rules by severity', async () => {
       const response = await fetch(`${baseUrl}/rules?severity=critical`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(200);
     });
 
     it('should filter rules by type', async () => {
       const response = await fetch(`${baseUrl}/rules?ruleType=network`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(200);
     });
@@ -67,7 +68,7 @@ describe('Detection Rules API Integration Tests', () => {
 
     it('should support sorting', async () => {
       const response = await fetch(`${baseUrl}/rules?sortBy=created_at&sortOrder=desc`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(200);
     });
@@ -79,7 +80,7 @@ describe('Detection Rules API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           name: 'SSH Brute Force Detection',
@@ -93,7 +94,7 @@ describe('Detection Rules API Integration Tests', () => {
         })
       });
       expect(response.status).toBe(201);
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.success).toBe(true);
       expect(data.data.id).toBeDefined();
     });
@@ -103,7 +104,7 @@ describe('Detection Rules API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           name: 'Missing Fields'
@@ -111,7 +112,7 @@ describe('Detection Rules API Integration Tests', () => {
         })
       });
       expect(response.status).toBe(422);
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.error.code).toBe('VALIDATION_ERROR');
     });
 
@@ -120,7 +121,7 @@ describe('Detection Rules API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           name: 'Test Rule',
@@ -137,7 +138,7 @@ describe('Detection Rules API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer viewer-token'
+          'Authorization': viewerAuthHeader()
         },
         body: JSON.stringify({
           name: 'Test',
@@ -153,14 +154,14 @@ describe('Detection Rules API Integration Tests', () => {
   describe('GET /rules/:id', () => {
     it('should get rule by id', async () => {
       const response = await fetch(`${baseUrl}/rules/rule-123`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect([200, 404]).toContain(response.status);
     });
 
     it('should return 404 for non-existent rule', async () => {
       const response = await fetch(`${baseUrl}/rules/non-existent-rule`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(404);
     });
@@ -172,10 +173,10 @@ describe('Detection Rules API Integration Tests', () => {
 
     it('should return complete rule definition', async () => {
       const response = await fetch(`${baseUrl}/rules/rule-123`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       if (response.status === 200) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         expect(data.data.ruleDefinition).toBeDefined();
       }
     });
@@ -187,7 +188,7 @@ describe('Detection Rules API Integration Tests', () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           ruleDefinition: {
@@ -204,7 +205,7 @@ describe('Detection Rules API Integration Tests', () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           status: 'inactive'
@@ -218,7 +219,7 @@ describe('Detection Rules API Integration Tests', () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer viewer-token'
+          'Authorization': viewerAuthHeader()
         },
         body: JSON.stringify({
           status: 'active'
@@ -232,7 +233,7 @@ describe('Detection Rules API Integration Tests', () => {
     it('should delete rule', async () => {
       const response = await fetch(`${baseUrl}/rules/rule-123`, {
         method: 'DELETE',
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect([204, 404]).toContain(response.status);
     });
@@ -240,7 +241,7 @@ describe('Detection Rules API Integration Tests', () => {
     it('should return 404 for non-existent rule', async () => {
       const response = await fetch(`${baseUrl}/rules/non-existent-rule`, {
         method: 'DELETE',
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(404);
     });
@@ -248,7 +249,7 @@ describe('Detection Rules API Integration Tests', () => {
     it('should enforce rule:delete permission', async () => {
       const response = await fetch(`${baseUrl}/rules/rule-123`, {
         method: 'DELETE',
-        headers: { 'Authorization': 'Bearer viewer-token' }
+        headers: { 'Authorization': viewerAuthHeader() }
       });
       expect([204, 403, 404]).toContain(response.status);
     });
@@ -260,7 +261,7 @@ describe('Detection Rules API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           testData: {
@@ -271,7 +272,7 @@ describe('Detection Rules API Integration Tests', () => {
       });
       expect([200, 404]).toContain(response.status);
       if (response.status === 200) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         expect(data.data.matched).toBeDefined();
       }
     });
@@ -281,7 +282,7 @@ describe('Detection Rules API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({})
       });
@@ -293,14 +294,14 @@ describe('Detection Rules API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({
           testData: { test: 'value' }
         })
       });
       if (response.status === 200) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         expect(data.success).toBe(true);
       }
     });
@@ -312,7 +313,7 @@ describe('Detection Rules API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         }
       });
       expect([200, 404]).toContain(response.status);
@@ -321,7 +322,7 @@ describe('Detection Rules API Integration Tests', () => {
     it('should return 404 for non-existent rule', async () => {
       const response = await fetch(`${baseUrl}/rules/non-existent-rule/deploy`, {
         method: 'POST',
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.status).toBe(404);
     });
@@ -329,7 +330,7 @@ describe('Detection Rules API Integration Tests', () => {
     it('should enforce rule:deploy permission', async () => {
       const response = await fetch(`${baseUrl}/rules/rule-123/deploy`, {
         method: 'POST',
-        headers: { 'Authorization': 'Bearer viewer-token' }
+        headers: { 'Authorization': viewerAuthHeader() }
       });
       expect([200, 403, 404]).toContain(response.status);
     });
@@ -337,10 +338,10 @@ describe('Detection Rules API Integration Tests', () => {
     it('should return deployed rule state', async () => {
       const response = await fetch(`${baseUrl}/rules/rule-123/deploy`, {
         method: 'POST',
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       if (response.status === 200) {
-        const data = await response.json();
+        const data = await (response.json() as Promise<any>);
         expect(data.data).toBeDefined();
       }
     });
@@ -349,9 +350,9 @@ describe('Detection Rules API Integration Tests', () => {
   describe('Error Handling', () => {
     it('should return consistent error format', async () => {
       const response = await fetch(`${baseUrl}/rules/invalid`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
-      const data = await response.json();
+      const data = await (response.json() as Promise<any>);
       expect(data.error).toBeDefined();
       expect(data.error.code).toBeDefined();
       expect(data.error.message).toBeDefined();
@@ -359,7 +360,7 @@ describe('Detection Rules API Integration Tests', () => {
 
     it('should include trace ID in response', async () => {
       const response = await fetch(`${baseUrl}/rules`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.headers.get('X-Trace-Id')).toBeDefined();
     });
@@ -369,7 +370,7 @@ describe('Detection Rules API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: 'invalid json {{'
       });
@@ -381,7 +382,7 @@ describe('Detection Rules API Integration Tests', () => {
     it('should list rules within 100ms', async () => {
       const start = Date.now();
       await fetch(`${baseUrl}/rules?pageSize=10`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       const duration = Date.now() - start;
       expect(duration).toBeLessThan(100);
@@ -390,7 +391,7 @@ describe('Detection Rules API Integration Tests', () => {
     it('should get single rule within 50ms', async () => {
       const start = Date.now();
       await fetch(`${baseUrl}/rules/rule-123`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       const duration = Date.now() - start;
       expect(duration).toBeLessThan(100);
@@ -402,7 +403,7 @@ describe('Detection Rules API Integration Tests', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer test-token'
+          'Authorization': adminAuthHeader()
         },
         body: JSON.stringify({ testData: {} })
       });
@@ -414,14 +415,14 @@ describe('Detection Rules API Integration Tests', () => {
   describe('Security Headers', () => {
     it('should include CORS headers', async () => {
       const response = await fetch(`${baseUrl}/rules`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.headers.get('access-control-allow-origin')).toBeDefined();
     });
 
     it('should include content security headers', async () => {
       const response = await fetch(`${baseUrl}/rules`, {
-        headers: { 'Authorization': 'Bearer test-token' }
+        headers: { 'Authorization': adminAuthHeader() }
       });
       expect(response.headers.get('x-content-type-options')).toBeDefined();
     });
