@@ -61,7 +61,7 @@ const App: React.FC = () => {
   // Always require fresh login after server restart.
   // Store a session key — if it doesn't match the current build, clear auth.
   useEffect(() => {
-    const SESSION_KEY = 'soc-lab-session-v2';
+    const SESSION_KEY = 'soc-lab-session-v3';
     const stored = sessionStorage.getItem('session-key');
     if (stored !== SESSION_KEY) {
       logout();

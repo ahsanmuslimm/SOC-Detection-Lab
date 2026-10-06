@@ -103,7 +103,7 @@ export const useAuthStore = create<AuthState>()(
           state.setError(null);
 
           try {
-            const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
+            const baseUrl = import.meta.env.VITE_API_URL ?? '/api/v1';
             const res = await fetch(`${baseUrl}/auth/login`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -179,7 +179,7 @@ export const useAuthStore = create<AuthState>()(
           }
 
           try {
-            const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
+            const baseUrl = import.meta.env.VITE_API_URL ?? '/api/v1';
             const res = await fetch(`${baseUrl}/auth/refresh`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
