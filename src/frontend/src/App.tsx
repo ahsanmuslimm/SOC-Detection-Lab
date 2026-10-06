@@ -7,7 +7,7 @@
  * @module App
  */
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from '@stores/authStore';
@@ -52,11 +52,18 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredPermi
  * Main App Component
  */
 const App: React.FC = () => {
-  const { isAuthenticated, hydrate } = useAuthStore();
+  const { isAuthenticated, _hydrated } = useAuthStore();
 
-  useEffect(() => {
-    hydrate();
-  }, [hydrate]);
+  // Show nothing until the persist middleware has rehydrated from localStorage.
+  // Without this, ProtectedRoute sees isAuthenticated=false on first render
+  // and redirects to /login before the stored session is loaded.
+  if (!_hydrated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+        <div className="text-white text-lg">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <>
