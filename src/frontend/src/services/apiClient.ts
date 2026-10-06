@@ -53,17 +53,22 @@ class ApiClient {
       async (error: AxiosError) => {
         const originalRequest = error.config as InternalAxiosRequestConfig & { retry?: boolean };
 
-        // Handle 401 Unauthorized
+        // Handle 401 Unauthorized — only attempt refresh if we have a refresh token
         if (error.response?.status === 401 && !originalRequest.retry) {
           originalRequest.retry = true;
+          const authStore = useAuthStore.getState();
+
+          // No refresh token — just logout, don't loop
+          if (!authStore.refreshToken) {
+            authStore.logout();
+            return Promise.reject(error);
+          }
 
           if (!this.isRefreshing) {
             this.isRefreshing = true;
 
             try {
-              const authStore = useAuthStore.getState();
               await authStore.refreshAccessToken();
-
               const newToken = authStore.accessToken;
               if (newToken) {
                 this.onRefreshed(newToken);
@@ -71,8 +76,7 @@ class ApiClient {
                 return this.client(originalRequest);
               }
             } catch (refreshError) {
-              useAuthStore.getState().logout();
-              window.location.href = '/login';
+              authStore.logout();
               return Promise.reject(refreshError);
             } finally {
               this.isRefreshing = false;
