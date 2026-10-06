@@ -12,6 +12,7 @@ import { investigationService } from '@services/investigationService';
 import { reportService } from '@services/reportService';
 import { userService } from '@services/userService';
 import type { ICase, IInvestigation, IUser } from '@app-types';
+import { useAuthStore } from '@stores/authStore';
 import toast from 'react-hot-toast';
 
 // ============================================
@@ -28,11 +29,13 @@ interface UseListOptions {
 export const useCases = (options: UseListOptions = {}) => {
   const { page = 1, pageSize = 25, filters = {} } = options;
   const queryClient = useQueryClient();
+  const { accessToken } = useAuthStore();
 
   const casesQuery = useQuery({
     queryKey: ['cases', { page, pageSize, ...filters }],
     queryFn: () => caseService.listCases(page, pageSize, filters),
     staleTime: 1000 * 60 * 5,
+    enabled: !!accessToken,
   });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['cases'] });
@@ -75,11 +78,13 @@ export const useCases = (options: UseListOptions = {}) => {
 };
 
 export const useCaseStats = () => {
+  const { accessToken } = useAuthStore();
   return useQuery({
     queryKey: ['caseStats'],
     queryFn: () => caseService.getCaseStats(),
     staleTime: 1000 * 60 * 5,
     select: (data) => data.data,
+    enabled: !!accessToken,
   });
 };
 
@@ -90,11 +95,13 @@ export const useCaseStats = () => {
 export const useInvestigations = (options: UseListOptions = {}) => {
   const { page = 1, pageSize = 25, filters = {} } = options;
   const queryClient = useQueryClient();
+  const { accessToken } = useAuthStore();
 
   const investigationsQuery = useQuery({
     queryKey: ['investigations', { page, pageSize, ...filters }],
     queryFn: () => investigationService.listInvestigations(page, pageSize, filters),
     staleTime: 1000 * 60 * 5,
+    enabled: !!accessToken,
   });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['investigations'] });

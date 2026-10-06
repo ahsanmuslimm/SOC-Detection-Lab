@@ -10,6 +10,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { alertService } from '@services/alertService';
 import type { IAlert } from '@app-types';
+import { useAuthStore } from '@stores/authStore';
 import toast from 'react-hot-toast';
 
 interface UseAlertsOptions {
@@ -24,12 +25,14 @@ interface UseAlertsOptions {
 export const useAlerts = (options: UseAlertsOptions = {}) => {
   const { page = 1, pageSize = 25, filters = {} } = options;
   const queryClient = useQueryClient();
+  const { accessToken } = useAuthStore();
 
-  // Query for list of alerts
+  // Query for list of alerts — only runs when we have a token
   const alertsQuery = useQuery({
     queryKey: ['alerts', { page, pageSize, ...filters }],
     queryFn: () => alertService.listAlerts(page, pageSize, filters as any),
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 60 * 5,
+    enabled: !!accessToken,
   });
 
   // Mutation for creating alert
@@ -122,11 +125,13 @@ export const useAlerts = (options: UseAlertsOptions = {}) => {
  * Hook for getting alert statistics
  */
 export const useAlertStats = () => {
+  const { accessToken } = useAuthStore();
   return useQuery({
     queryKey: ['alertStats'],
     queryFn: () => alertService.getAlertStats(),
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 60 * 5,
     select: (data) => data.data,
+    enabled: !!accessToken,
   });
 };
 
