@@ -52,18 +52,22 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredPermi
  * Main App Component
  */
 const App: React.FC = () => {
-  const { isAuthenticated, hydrate, logout, accessToken } = useAuthStore();
+  const { isAuthenticated, hydrate, logout } = useAuthStore();
 
   useEffect(() => {
     hydrate();
   }, [hydrate]);
 
-  // Clear stale mock tokens — real JWTs are long strings starting with "eyJ"
+  // Always require fresh login after server restart.
+  // Store a session key — if it doesn't match the current build, clear auth.
   useEffect(() => {
-    if (accessToken && !accessToken.startsWith('eyJ')) {
+    const SESSION_KEY = 'soc-lab-session-v2';
+    const stored = sessionStorage.getItem('session-key');
+    if (stored !== SESSION_KEY) {
       logout();
+      sessionStorage.setItem('session-key', SESSION_KEY);
     }
-  }, [accessToken, logout]);
+  }, [logout]);
 
   return (
     <>
