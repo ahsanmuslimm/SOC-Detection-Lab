@@ -79,10 +79,8 @@ const LoginPage: React.FC = () => {
         {isLoading ? 'Signing in...' : 'Sign In'}
       </button>
 
-      <p className="text-center text-sm text-gray-600">
-        Demo credentials:<br />
-        Email: analyst@soc.local<br />
-        Password: SecurePassword123!
+      <p className="text-center text-sm text-gray-500 mt-2">
+        Default credentials: <strong>admin@soc.local</strong> / SecurePassword123!
       </p>
     </form>
   );

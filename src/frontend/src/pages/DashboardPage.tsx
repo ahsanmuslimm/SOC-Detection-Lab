@@ -9,7 +9,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, Briefcase, Search, TrendingUp } from 'lucide-react';
 import { useAlerts, useAlertStats } from '@hooks/useAlerts';
-import { useCaseStats } from '@hooks/useDomainData';
+import { useCaseStats, useInvestigations } from '@hooks/useDomainData';
 import { getSeverityColor, formatRelativeTime } from '@utils/formatters';
 
 const DashboardPage: React.FC = () => {
@@ -17,16 +17,20 @@ const DashboardPage: React.FC = () => {
   const { data: alertStats } = useAlertStats();
   const { data: caseStats } = useCaseStats();
   const { alerts } = useAlerts({ page: 1, pageSize: 5 });
+  const { investigations } = useInvestigations({ page: 1, pageSize: 1 });
 
   const openCases = caseStats ? (caseStats as any).open ?? 0 : 0;
   const totalAlerts = alertStats?.total ?? 0;
   const resolvedAlerts = alertStats?.resolved ?? 0;
   const resolutionRate = totalAlerts > 0 ? Math.round((resolvedAlerts / totalAlerts) * 100) : 0;
+  const investigationCount = investigations.length > 0
+    ? String((investigations as any).length)
+    : '—';
 
   const stats = [
     { label: 'Total Alerts', value: totalAlerts.toLocaleString(), icon: AlertTriangle, color: 'bg-red-50' },
     { label: 'Open Cases', value: String(openCases), icon: Briefcase, color: 'bg-blue-50' },
-    { label: 'Investigations', value: '—', icon: Search, color: 'bg-purple-50' },
+    { label: 'Investigations', value: investigationCount, icon: Search, color: 'bg-purple-50' },
     { label: 'Resolution Rate', value: `${resolutionRate}%`, icon: TrendingUp, color: 'bg-green-50' },
   ];
 

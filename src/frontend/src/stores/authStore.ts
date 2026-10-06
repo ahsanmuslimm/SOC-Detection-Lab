@@ -96,37 +96,59 @@ export const useAuthStore = create<AuthState>()(
           }));
         },
 
-        // Login action (will be connected to API)
-        login: async (email: string, _password: string) => {
+        // Login action — calls POST /api/v1/auth/login
+        login: async (email: string, password: string) => {
           const state = get();
           state.setLoading(true);
           state.setError(null);
 
           try {
-            // This will be connected to the actual API
-            // For now, mock the response
-            const mockUser: IUser = {
-              id: 'user-123',
-              email,
-              firstName: 'John',
-              lastName: 'Analyst',
-              role: 'analyst',
+            const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
+            const res = await fetch(`${baseUrl}/auth/login`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email, password }),
+            });
+
+            const json = await res.json() as {
+              success: boolean;
+              data?: {
+                user: {
+                  id: string;
+                  username: string;
+                  email: string;
+                  role: string;
+                  status: string;
+                };
+                accessToken: string;
+                refreshToken: string;
+                expiresIn: number;
+              };
+              error?: { message: string };
+            };
+
+            if (!res.ok || !json.success || !json.data) {
+              throw new Error(json.error?.message || 'Invalid email or password');
+            }
+
+            const { user: apiUser, accessToken, refreshToken, expiresIn } = json.data;
+
+            // Map API user shape to IUser
+            const user: IUser = {
+              id: apiUser.id,
+              email: apiUser.email,
+              firstName: apiUser.username,   // backend has username, not firstName
+              lastName: '',
+              role: (apiUser.role?.toLowerCase() as UserRole) || 'viewer',
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
             };
 
-            const mockTokens = {
-              accessToken: 'mock-access-token',
-              refreshToken: 'mock-refresh-token',
-              expiresIn: 3600,
-            };
+            // Store absolute expiry timestamp (ms) so isTokenExpired() works correctly
+            const expiresAt = Date.now() + expiresIn * 1000;
 
-            state.setUser(mockUser);
-            state.setTokens(
-              mockTokens.accessToken,
-              mockTokens.refreshToken,
-              mockTokens.expiresIn
-            );
+            state.setUser(user);
+            state.setTokens(accessToken, refreshToken, expiresAt);
           } catch (error) {
             state.setError(error instanceof Error ? error.message : 'Login failed');
             throw error;
@@ -148,7 +170,7 @@ export const useAuthStore = create<AuthState>()(
           }));
         },
 
-        // Refresh access token
+        // Refresh access token — calls POST /api/v1/auth/refresh
         refreshAccessToken: async () => {
           const state = get();
           if (!state.refreshToken) {
@@ -157,18 +179,33 @@ export const useAuthStore = create<AuthState>()(
           }
 
           try {
-            // This will be connected to the actual API
-            const newAccessToken = 'new-mock-access-token';
-            const newExpiresIn = 3600;
+            const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
+            const res = await fetch(`${baseUrl}/auth/refresh`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ refreshToken: state.refreshToken }),
+            });
+
+            const json = await res.json() as {
+              success: boolean;
+              data?: { accessToken: string; refreshToken?: string; expiresIn: number };
+            };
+
+            if (!res.ok || !json.success || !json.data) {
+              state.logout();
+              return;
+            }
+
+            const { accessToken, refreshToken, expiresIn } = json.data;
+            const expiresAt = Date.now() + expiresIn * 1000;
 
             state.setTokens(
-              newAccessToken,
-              state.refreshToken,
-              newExpiresIn
+              accessToken,
+              refreshToken ?? state.refreshToken!,
+              expiresAt
             );
-          } catch (error) {
+          } catch {
             state.logout();
-            throw error;
           }
         },
 
@@ -227,14 +264,12 @@ export const useAuthStore = create<AuthState>()(
           return permissions.includes('*') || permissions.includes(permission);
         },
 
-        // Check if token is expired
+        // Check if token is expired (expiresIn stores absolute ms timestamp)
         isTokenExpired: () => {
-          const state = get();
-          if (!state.expiresIn) return true;
-
-          // Check if token expires in next 5 minutes
-          const expirationTime = state.expiresIn * 1000;
-          return Date.now() + 5 * 60 * 1000 > expirationTime;
+          const { expiresIn } = get();
+          if (!expiresIn) return true;
+          // Treat as expired if less than 5 minutes remain
+          return Date.now() + 5 * 60 * 1000 > expiresIn;
         },
       }),
       {
