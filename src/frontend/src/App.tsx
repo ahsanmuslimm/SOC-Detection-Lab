@@ -52,12 +52,18 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredPermi
  * Main App Component
  */
 const App: React.FC = () => {
-  const { isAuthenticated, hydrate } = useAuthStore();
+  const { isAuthenticated, hydrate, logout, accessToken } = useAuthStore();
 
-  // Hydrate auth state from storage on mount
   useEffect(() => {
     hydrate();
   }, [hydrate]);
+
+  // Clear stale mock tokens — real JWTs are long strings starting with "eyJ"
+  useEffect(() => {
+    if (accessToken && !accessToken.startsWith('eyJ')) {
+      logout();
+    }
+  }, [accessToken, logout]);
 
   return (
     <>
