@@ -126,8 +126,12 @@ export const useAuthStore = create<AuthState>()(
 
         // ── Refresh token ────────────────────────────────────────────────────
         refreshAccessToken: async () => {
-          const { refreshToken, logout } = get();
-          if (!refreshToken) { logout(); return; }
+          const { refreshToken } = get();
+          if (!refreshToken) {
+            // No refresh token — just clear auth silently, don't throw
+            set({ isAuthenticated: false, user: null, accessToken: null, refreshToken: null, expiresIn: null });
+            return;
+          }
 
           try {
             const baseUrl = (import.meta.env.VITE_API_URL as string | undefined) ?? '/api/v1';
@@ -142,7 +146,11 @@ export const useAuthStore = create<AuthState>()(
               data?: { accessToken: string; refreshToken?: string; expiresIn: number };
             };
 
-            if (!res.ok || !json.success || !json.data) { logout(); return; }
+            if (!res.ok || !json.success || !json.data) {
+              // Refresh failed — clear auth silently so user can log in again
+              set({ isAuthenticated: false, user: null, accessToken: null, refreshToken: null, expiresIn: null });
+              return;
+            }
 
             const { accessToken, refreshToken: newRefresh, expiresIn } = json.data;
             set({
@@ -151,7 +159,7 @@ export const useAuthStore = create<AuthState>()(
               expiresIn: Date.now() + expiresIn * 1000,
             });
           } catch {
-            get().logout();
+            set({ isAuthenticated: false, user: null, accessToken: null, refreshToken: null, expiresIn: null });
           }
         },
 
