@@ -35,13 +35,7 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredPermission }) => {
-  const { isAuthenticated, hasPermission, isTokenExpired, logout } = useAuthStore();
-
-  // Token expired — log out silently
-  if (isAuthenticated && isTokenExpired()) {
-    logout();
-    return <Navigate to="/login" replace />;
-  }
+  const { isAuthenticated, hasPermission } = useAuthStore();
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
