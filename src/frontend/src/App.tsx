@@ -35,7 +35,13 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredPermission }) => {
-  const { isAuthenticated, hasPermission } = useAuthStore();
+  const { isAuthenticated, hasPermission, isTokenExpired, logout } = useAuthStore();
+
+  // Token expired — log out silently
+  if (isAuthenticated && isTokenExpired()) {
+    logout();
+    return <Navigate to="/login" replace />;
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -52,22 +58,11 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredPermi
  * Main App Component
  */
 const App: React.FC = () => {
-  const { isAuthenticated, hydrate, logout } = useAuthStore();
+  const { isAuthenticated, hydrate } = useAuthStore();
 
   useEffect(() => {
     hydrate();
   }, [hydrate]);
-
-  // Always require fresh login after server restart.
-  // Store a session key — if it doesn't match the current build, clear auth.
-  useEffect(() => {
-    const SESSION_KEY = 'soc-lab-session-v3';
-    const stored = sessionStorage.getItem('session-key');
-    if (stored !== SESSION_KEY) {
-      logout();
-      sessionStorage.setItem('session-key', SESSION_KEY);
-    }
-  }, [logout]);
 
   return (
     <>
