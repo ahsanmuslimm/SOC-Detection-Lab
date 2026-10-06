@@ -24,65 +24,94 @@ import SettingsPage from '@pages/SettingsPage';
 import ProfilePage from '@pages/ProfilePage';
 import NotFoundPage from '@pages/NotFoundPage';
 
-// ── Spinner shown while auto-login is in progress ────────────────────────────
+// ── Spinner shown while persist middleware rehydrates ────────────────────────
 const LoadingScreen: React.FC = () => (
   <div className="min-h-screen flex flex-col items-center justify-center bg-gray-900">
     <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />
-    <p className="text-gray-400 text-sm">Connecting to SOC Detection Lab…</p>
+    <p className="text-gray-400 text-sm">Loading SOC Detection Lab…</p>
   </div>
 );
 
-// ── All routes are accessible — auth bypass active ───────────────────────────
-interface ProtectedRouteProps { children: React.ReactNode; requiredPermission?: string; }
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => <>{children}</>;
+// ── Protected route — redirects to login if not authenticated ────────────────
+interface ProtectedRouteProps {
+  children: React.ReactNode;
+  requiredPermission?: string;
+}
+
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredPermission }) => {
+  const { isAuthenticated, hasPermission } = useAuthStore();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (requiredPermission && !hasPermission(requiredPermission)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <>{children}</>;
+};
 
 // ── Main App ─────────────────────────────────────────────────────────────────
 const App: React.FC = () => {
-  const { isAuthenticated, accessToken, login } = useAuthStore();
-  const [ready, setReady] = useState(false);
+  const { isAuthenticated, _hydrated } = useAuthStore();
+
+  // Wait for the Zustand persist middleware to rehydrate from localStorage.
+  // Without this gate, ProtectedRoute renders before isAuthenticated is set
+  // and immediately redirects to /login even when a valid session exists.
+  const [ready, setReady] = useState(_hydrated);
 
   useEffect(() => {
-    // If already authenticated (token in localStorage), go straight to dashboard
-    if (isAuthenticated && accessToken) {
-      setReady(true);
-      return;
+    if (!ready) {
+      const t = setTimeout(() => setReady(true), 50);
+      return () => clearTimeout(t);
     }
-    // Otherwise auto-login so we get a real JWT before any data queries fire
-    login('admin@soc.local', 'SecurePassword123!')
-      .then(() => setReady(true))
-      .catch(() => setReady(true)); // still show the app even if login fails
-    // Run only once on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    return undefined;
+  }, [ready]);
 
-  // Block rendering until we have a token — prevents React Query from
-  // firing with no auth header and getting 401s
   if (!ready) return <LoadingScreen />;
 
   return (
     <>
       <BrowserRouter>
         <Routes>
-          {/* Auth pages */}
+          {/* Auth */}
           <Route element={<AuthLayout />}>
             <Route path="/login" element={<LoginPage />} />
           </Route>
 
-          {/* Main app */}
-          <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
+          {/* Protected app */}
+          <Route
+            element={
+              <ProtectedRoute>
+                <MainLayout />
+              </ProtectedRoute>
+            }
+          >
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/alerts" element={<AlertsPage />} />
             <Route path="/cases" element={<CasesPage />} />
             <Route path="/investigations" element={<InvestigationsPage />} />
             <Route path="/reports" element={<ReportsPage />} />
-            <Route path="/users" element={<ProtectedRoute requiredPermission="user:read"><UsersPage /></ProtectedRoute>} />
+            <Route
+              path="/users"
+              element={
+                <ProtectedRoute requiredPermission="user:read">
+                  <UsersPage />
+                </ProtectedRoute>
+              }
+            />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/profile" element={<ProfilePage />} />
           </Route>
 
-          {/* Redirects */}
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/login" element={<Navigate to="/dashboard" replace />} />
+          {/* Root redirect */}
+          <Route
+            path="/"
+            element={<Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />}
+          />
+
+          {/* 404 */}
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </BrowserRouter>
