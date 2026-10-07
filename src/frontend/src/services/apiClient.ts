@@ -75,9 +75,11 @@ class ApiClient {
                 originalRequest.headers.Authorization = `Bearer ${newToken}`;
                 return this.client(originalRequest);
               }
-            } catch (refreshError) {
-              authStore.logout();
-              return Promise.reject(refreshError);
+              // Refresh didn't produce a new token — reject silently
+              return Promise.reject(error);
+            } catch {
+              // Refresh failed — reject but DON'T logout
+              return Promise.reject(error);
             } finally {
               this.isRefreshing = false;
               this.refreshSubscribers = [];

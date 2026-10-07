@@ -126,10 +126,12 @@ export const useAuthStore = create<AuthState>()(
 
         // ── Refresh token ────────────────────────────────────────────────────
         refreshAccessToken: async () => {
-          const { refreshToken } = get();
+          const { refreshToken, accessToken } = get();
+
+          // No refresh token — clear tokens but keep user on the page
+          // They'll need to log in again next time, but don't boot them now
           if (!refreshToken) {
-            // No refresh token — just clear auth silently, don't throw
-            set({ isAuthenticated: false, user: null, accessToken: null, refreshToken: null, expiresIn: null });
+            set({ accessToken: null, refreshToken: null, expiresIn: null });
             return;
           }
 
@@ -147,20 +149,24 @@ export const useAuthStore = create<AuthState>()(
             };
 
             if (!res.ok || !json.success || !json.data) {
-              // Refresh failed — clear auth silently so user can log in again
-              set({ isAuthenticated: false, user: null, accessToken: null, refreshToken: null, expiresIn: null });
+              // Refresh failed — only clear if the current accessToken is also invalid
+              // Don't clear isAuthenticated or user — let them stay logged in
+              set({ refreshToken: null, expiresIn: null });
               return;
             }
 
-            const { accessToken, refreshToken: newRefresh, expiresIn } = json.data;
+            const { accessToken: newAccess, refreshToken: newRefresh, expiresIn } = json.data;
             set({
-              accessToken,
+              accessToken: newAccess,
               refreshToken: newRefresh ?? refreshToken,
               expiresIn: Date.now() + expiresIn * 1000,
             });
           } catch {
-            set({ isAuthenticated: false, user: null, accessToken: null, refreshToken: null, expiresIn: null });
+            // Network error — don't clear auth, just null out the refresh token
+            set({ refreshToken: null, expiresIn: null });
           }
+          // Suppress unused variable warning
+          void accessToken;
         },
 
         // ── hydrate: no-op — persist middleware handles it ───────────────────
@@ -191,7 +197,7 @@ export const useAuthStore = create<AuthState>()(
         },
       }),
       {
-        name: 'auth-store',
+        name: 'auth-store-v2',
         partialize: (state) => ({
           user: state.user,
           accessToken: state.accessToken,
