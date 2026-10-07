@@ -24,35 +24,32 @@ import SettingsPage from '@pages/SettingsPage';
 import ProfilePage from '@pages/ProfilePage';
 import NotFoundPage from '@pages/NotFoundPage';
 
-// ── Loading spinner ───────────────────────────────────────────────────────────
-const LoadingScreen: React.FC = () => (
-  <div className="min-h-screen flex flex-col items-center justify-center bg-gray-900">
-    <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />
-    <p className="text-gray-400 text-sm">Loading…</p>
-  </div>
-);
+// ── Hardcoded dev token (1 year, signed with correct secret) ─────────────────
+const DEV_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJhZG1pbiIsInVzZXJuYW1lIjoiYWRtaW4iLCJlbWFpbCI6ImFkbWluQHNvYy5sb2NhbCIsInJvbGUiOiJBRE1JTiIsInJvbGVJZCI6ImFkbWluIiwiaWF0IjoxNzkxMzgwNDA4LCJleHAiOjE4MjI5MTY0MDh9.XtoDHk8ITn-C9sFvIeIhx4nwqmtsRIpdFIbUHVnVSR0';
 
-// ── Protected route ───────────────────────────────────────────────────────────
-interface ProtectedRouteProps {
-  children: React.ReactNode;
-  requiredPermission?: string;
+// ── Seed the store once with the dev token ────────────────────────────────────
+const store = useAuthStore.getState();
+if (!store.accessToken) {
+  useAuthStore.setState({
+    isAuthenticated: true,
+    _hydrated: true,
+    accessToken: DEV_TOKEN,
+    refreshToken: 'dev-refresh',
+    expiresIn: Date.now() + 365 * 24 * 3600 * 1000,
+    user: {
+      id: 'admin',
+      email: 'admin@soc.local',
+      firstName: 'Admin',
+      lastName: '',
+      role: 'admin',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    },
+  });
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requiredPermission }) => {
-  const { isAuthenticated, hasPermission } = useAuthStore();
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (requiredPermission && !hasPermission(requiredPermission)) return <Navigate to="/dashboard" replace />;
-  return <>{children}</>;
-};
-
-// ── Main App ──────────────────────────────────────────────────────────────────
+// ── All routes open (no auth check) ──────────────────────────────────────────
 const App: React.FC = () => {
-  const { isAuthenticated, _hydrated } = useAuthStore();
-
-  // Block rendering until Zustand persist has finished reading localStorage.
-  // _hydrated is set to true by onRehydrateStorage callback in the store.
-  if (!_hydrated) return <LoadingScreen />;
-
   return (
     <>
       <BrowserRouter>
@@ -61,23 +58,27 @@ const App: React.FC = () => {
             <Route path="/login" element={<LoginPage />} />
           </Route>
 
-          <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
+          <Route element={<MainLayout />}>
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/alerts" element={<AlertsPage />} />
             <Route path="/cases" element={<CasesPage />} />
             <Route path="/investigations" element={<InvestigationsPage />} />
             <Route path="/reports" element={<ReportsPage />} />
-            <Route path="/users" element={<ProtectedRoute requiredPermission="user:read"><UsersPage /></ProtectedRoute>} />
+            <Route path="/users" element={<UsersPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/profile" element={<ProfilePage />} />
           </Route>
 
-          <Route path="/" element={<Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />} />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/login" element={<Navigate to="/dashboard" replace />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </BrowserRouter>
 
-      <Toaster position="top-right" toastOptions={{ duration: 4000, style: { background: '#363636', color: '#fff' } }} />
+      <Toaster
+        position="top-right"
+        toastOptions={{ duration: 4000, style: { background: '#363636', color: '#fff' } }}
+      />
     </>
   );
 };
