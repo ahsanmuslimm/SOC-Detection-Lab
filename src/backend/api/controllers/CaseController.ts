@@ -12,6 +12,7 @@ import type { IAuthenticatedRequest, ICreateCaseRequest, IUpdateCaseRequest, ICa
 import { HTTP_STATUS } from '../types';
 import { BaseController } from './BaseController';
 import type { IServiceOrchestrator } from '../../services/orchestrator/types';
+import { NotificationService } from '../../services/notifications/NotificationService';
 
 /**
  * Case Controller - 8 endpoints
@@ -85,6 +86,9 @@ export class CaseController extends BaseController {
         resource: `case:${newCase.id}`,
         status: 'success'
       });
+
+      // Fire notifications (non-blocking)
+      NotificationService.getInstance().caseOpened(newCase as Record<string, unknown>).catch(() => undefined);
 
       this.created(res, newCase);
     } catch (error: any) {

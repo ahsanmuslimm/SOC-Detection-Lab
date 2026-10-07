@@ -12,6 +12,7 @@ import type { IAuthenticatedRequest, ICreateAlertRequest, IUpdateAlertRequest, I
 import { HTTP_STATUS } from '../types';
 import { BaseController } from './BaseController';
 import type { IServiceOrchestrator } from '../../services/orchestrator/types';
+import { NotificationService } from '../../services/notifications/NotificationService';
 
 /**
  * Alert Controller
@@ -109,6 +110,9 @@ export class AlertController extends BaseController {
         resource: `alert:${alert.id}`,
         status: 'success'
       });
+
+      // Fire notifications (non-blocking — don't fail the request if this errors)
+      NotificationService.getInstance().alertCreated(alert as Record<string, unknown>).catch(() => undefined);
 
       this.created(res, alert);
     } catch (error: any) {
