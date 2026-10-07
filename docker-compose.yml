@@ -1,22 +1,41 @@
 # SOC Detection Lab — Local/Production Compose Stack
 #
 # Usage:
-#   docker compose up -d          # start app + postgres + redis
+#   docker compose up -d          # start full stack with HTTPS via nginx
 #   docker compose logs -f app    # follow application logs
 #
-# The API serves the built frontend from the same container on port 3000.
+# HTTPS: https://localhost (self-signed cert — accept browser warning in dev)
+# HTTP:  http://localhost  (auto-redirects to HTTPS)
 
 services:
+  # ── Nginx — HTTPS reverse proxy ──────────────────────────────────────────────
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: soc-lab-nginx
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/certs/server.crt:/etc/nginx/certs/server.crt:ro
+      - ./infra/certs/server.key:/etc/nginx/certs/server.key:ro
+    depends_on:
+      - app
+    restart: unless-stopped
+
+  # ── App ───────────────────────────────────────────────────────────────────────
   app:
     build: .
     container_name: soc-lab-app
-    ports:
-      - '3000:3000'
+    expose:
+      - '3000'
     environment:
       NODE_ENV: production
       PORT: 3000
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3001}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-900}
+      JWT_REFRESH_TTL_DAYS: ${JWT_REFRESH_TTL_DAYS:-7}
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://localhost}
       DATABASE_URL: postgresql://${POSTGRES_USER:-soc}:${POSTGRES_PASSWORD:-soc}@postgres:5432/${POSTGRES_DB:-soclab}
       REDIS_URL: redis://redis:6379
       SERVE_STATIC: 'true'
@@ -27,6 +46,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # ── PostgreSQL ────────────────────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
     container_name: soc-lab-postgres
@@ -45,6 +65,7 @@ services:
       retries: 5
     restart: unless-stopped
 
+  # ── Redis ─────────────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: soc-lab-redis

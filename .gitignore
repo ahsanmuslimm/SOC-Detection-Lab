@@ -78,6 +78,8 @@ public/
 *.pem
 *.key
 *.crt
+infra/certs/*.key
+infra/certs/*.crt
 
 # Backup files
 *.bak
