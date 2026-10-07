@@ -18,8 +18,8 @@ import { DatabaseClient } from '../client';
 import { UserRepository, InternalUser } from './UserRepository';
 
 const JWT_SECRET = process.env.JWT_SECRET ?? 'dev-secret';
-const ACCESS_TOKEN_TTL_SECONDS = 3600;          // 1 hour
-const REFRESH_TOKEN_TTL_DAYS   = 7;
+const ACCESS_TOKEN_TTL_SECONDS = parseInt(process.env.JWT_ACCESS_TTL ?? '900');   // 15 min default
+const REFRESH_TOKEN_TTL_DAYS = parseInt(process.env.JWT_REFRESH_TTL_DAYS ?? '7');
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -34,11 +34,11 @@ function randomHex(bytes = 32): string {
 function issueAccessToken(user: InternalUser): string {
   return jwt.sign(
     {
-      userId:   user.id,
+      userId: user.id,
       username: user.username,
-      email:    user.email,
-      role:     user.role,
-      roleId:   user.roleId,
+      email: user.email,
+      role: user.role,
+      roleId: user.roleId,
     },
     JWT_SECRET,
     { expiresIn: ACCESS_TOKEN_TTL_SECONDS }
@@ -51,7 +51,7 @@ export class AuthRepository {
   constructor(
     private db: DatabaseClient,
     private users: UserRepository
-  ) {}
+  ) { }
 
   /**
    * Validate credentials, enforce lockout, issue JWT + refresh token.
@@ -59,7 +59,7 @@ export class AuthRepository {
    */
   async login(credentials: Record<string, unknown>): Promise<Record<string, unknown> | null> {
     const identifier = String(credentials.email ?? credentials.username ?? '');
-    const password   = String(credentials.password ?? '');
+    const password = String(credentials.password ?? '');
 
     const user = await this.users.findByCredentials(identifier);
     if (!user || user.status !== 'active') return null;
@@ -87,10 +87,10 @@ export class AuthRepository {
       [user.id]
     );
 
-    const rawRefresh    = randomHex();
-    const tokenHash     = sha256(rawRefresh);
-    const expiresAt     = new Date(Date.now() + REFRESH_TOKEN_TTL_DAYS * 24 * 3600 * 1000);
-    const accessToken   = issueAccessToken(user);
+    const rawRefresh = randomHex();
+    const tokenHash = sha256(rawRefresh);
+    const expiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_DAYS * 24 * 3600 * 1000);
+    const accessToken = issueAccessToken(user);
 
     await this.db.query(
       `INSERT INTO user_sessions (user_id, token_hash, expires_at)
@@ -99,11 +99,11 @@ export class AuthRepository {
     );
 
     return {
-      user:         this.users.toPublicUserFromInternal(user),
+      user: this.users.toPublicUserFromInternal(user),
       accessToken,
       refreshToken: rawRefresh,
-      tokenType:    'Bearer',
-      expiresIn:    ACCESS_TOKEN_TTL_SECONDS,
+      tokenType: 'Bearer',
+      expiresIn: ACCESS_TOKEN_TTL_SECONDS,
     };
   }
 
@@ -146,9 +146,9 @@ export class AuthRepository {
 
     // Rotate: delete old session, create new one
     const newRawRefresh = randomHex();
-    const newHash       = sha256(newRawRefresh);
-    const newExpiry     = new Date(Date.now() + REFRESH_TOKEN_TTL_DAYS * 24 * 3600 * 1000);
-    const accessToken   = issueAccessToken(user);
+    const newHash = sha256(newRawRefresh);
+    const newExpiry = new Date(Date.now() + REFRESH_TOKEN_TTL_DAYS * 24 * 3600 * 1000);
+    const accessToken = issueAccessToken(user);
 
     await this.db.transaction(async (client) => {
       await client.query('DELETE FROM user_sessions WHERE id = $1', [session.id]);
@@ -161,7 +161,7 @@ export class AuthRepository {
     return {
       accessToken,
       refreshToken: newRawRefresh,
-      expiresIn:    ACCESS_TOKEN_TTL_SECONDS,
+      expiresIn: ACCESS_TOKEN_TTL_SECONDS,
     };
   }
 

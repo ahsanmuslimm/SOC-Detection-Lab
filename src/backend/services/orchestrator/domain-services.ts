@@ -16,7 +16,7 @@ import jwt from 'jsonwebtoken';
 import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
-const ACCESS_TOKEN_TTL_SECONDS = 3600;
+const ACCESS_TOKEN_TTL_SECONDS = parseInt(process.env.JWT_ACCESS_TTL ?? '900'); // 15 min default
 
 // ============================================
 // Helpers
@@ -76,7 +76,7 @@ function queryStore<T extends StoreRecord>(
 }
 
 function matchesSearch(item: StoreRecord, search: string, fields: string[]): boolean {
-  if (!search) {return true;}
+  if (!search) { return true; }
   const needle = String(search).toLowerCase();
   return fields.some(field =>
     String(item[field] ?? '')
@@ -175,7 +175,7 @@ export class InMemoryAlertService {
 
   async updateAlert(id: string, data: any): Promise<any> {
     const alert = this.store.get(id);
-    if (!alert) {return null;}
+    if (!alert) { return null; }
     const updated = { ...alert, ...data, id, updatedAt: nowIso() };
     this.store.set(id, updated);
     return { ...updated };
@@ -194,7 +194,7 @@ export class InMemoryAlertService {
     for (const alert of alerts) {
       byStatus[alert.status] = (byStatus[alert.status] || 0) + 1;
       bySeverity[alert.severity] = (bySeverity[alert.severity] || 0) + 1;
-      if (!alert.assignedToId) {unassigned += 1;}
+      if (!alert.assignedToId) { unassigned += 1; }
     }
 
     return {
@@ -220,15 +220,15 @@ export class InMemoryAlertService {
 }
 
 export class InMemoryQueryService {
-  constructor(private alertService: InMemoryAlertService) {}
+  constructor(private alertService: InMemoryAlertService) { }
 
   async queryAlerts(params: any): Promise<{ alerts: any[]; total: number }> {
     const result = queryStore(this.alertService.getAll(), params, (alert, filters) => {
-      if (filters.status && alert.status !== filters.status) {return false;}
-      if (filters.severity && alert.severity !== filters.severity) {return false;}
-      if (filters.assignedTo && alert.assignedToId !== filters.assignedTo) {return false;}
-      if (filters.sourceSystem && alert.sourceSystem !== filters.sourceSystem) {return false;}
-      if (!matchesSearch(alert, filters.search, ['title', 'description', 'sourceIp'])) {return false;}
+      if (filters.status && alert.status !== filters.status) { return false; }
+      if (filters.severity && alert.severity !== filters.severity) { return false; }
+      if (filters.assignedTo && alert.assignedToId !== filters.assignedTo) { return false; }
+      if (filters.sourceSystem && alert.sourceSystem !== filters.sourceSystem) { return false; }
+      if (!matchesSearch(alert, filters.search, ['title', 'description', 'sourceIp'])) { return false; }
       return true;
     });
     return { alerts: result.items, total: result.total };
@@ -308,7 +308,7 @@ export class InMemoryCaseService {
 
   async updateCase(id: string, data: any): Promise<any> {
     const record = this.store.get(id);
-    if (!record) {return null;}
+    if (!record) { return null; }
     const updated = { ...record, ...data, id, updatedAt: nowIso() };
     this.store.set(id, updated);
     return { ...updated };
@@ -320,10 +320,10 @@ export class InMemoryCaseService {
 
   async queryCases(params?: any): Promise<{ cases: any[]; total: number }> {
     const result = queryStore(Array.from(this.store.values()), params, (record, filters) => {
-      if (filters.status && record.status !== filters.status) {return false;}
-      if (filters.severity && record.severity !== filters.severity) {return false;}
-      if (filters.assignedTo && record.assignedTo !== filters.assignedTo) {return false;}
-      if (!matchesSearch(record, filters.search, ['title', 'description', 'caseNumber'])) {return false;}
+      if (filters.status && record.status !== filters.status) { return false; }
+      if (filters.severity && record.severity !== filters.severity) { return false; }
+      if (filters.assignedTo && record.assignedTo !== filters.assignedTo) { return false; }
+      if (!matchesSearch(record, filters.search, ['title', 'description', 'caseNumber'])) { return false; }
       return true;
     });
     return { cases: result.items, total: result.total };
@@ -424,7 +424,7 @@ export class InMemoryDetectionService {
 
   async updateRule(id: string, data: any): Promise<any> {
     const rule = this.store.get(id);
-    if (!rule) {return null;}
+    if (!rule) { return null; }
     const updated = { ...rule, ...data, id, updatedAt: nowIso() };
     this.store.set(id, updated);
     return { ...updated };
@@ -436,11 +436,11 @@ export class InMemoryDetectionService {
 
   async queryRules(params?: any): Promise<{ rules: any[]; total: number }> {
     const result = queryStore(Array.from(this.store.values()), params, (rule, filters) => {
-      if (filters.status && rule.status !== filters.status) {return false;}
-      if (filters.severity && rule.severity !== filters.severity) {return false;}
-      if (filters.techniqueId && rule.techniqueId !== filters.techniqueId) {return false;}
-      if (filters.enabled !== undefined && rule.enabled !== filters.enabled) {return false;}
-      if (!matchesSearch(rule, filters.search, ['name', 'description', 'technique'])) {return false;}
+      if (filters.status && rule.status !== filters.status) { return false; }
+      if (filters.severity && rule.severity !== filters.severity) { return false; }
+      if (filters.techniqueId && rule.techniqueId !== filters.techniqueId) { return false; }
+      if (filters.enabled !== undefined && rule.enabled !== filters.enabled) { return false; }
+      if (!matchesSearch(rule, filters.search, ['name', 'description', 'technique'])) { return false; }
       return true;
     });
     return { rules: result.items, total: result.total };
@@ -448,7 +448,7 @@ export class InMemoryDetectionService {
 
   async testRule(id: string, data?: any): Promise<any> {
     const rule = this.store.get(id);
-    if (!rule) {return null;}
+    if (!rule) { return null; }
     return {
       ruleId: id,
       matched: true,
@@ -465,7 +465,7 @@ export class InMemoryDetectionService {
 
   async deployRule(id: string): Promise<any> {
     const rule = this.store.get(id);
-    if (!rule) {return null;}
+    if (!rule) { return null; }
     const updated = { ...rule, status: 'production', deployedAt: nowIso(), updatedAt: nowIso() };
     this.store.set(id, updated);
     return { ...updated };
@@ -534,7 +534,7 @@ export class InMemoryInvestigationService {
 
   async updateInvestigation(id: string, data: any): Promise<any> {
     const record = this.store.get(id);
-    if (!record) {return null;}
+    if (!record) { return null; }
     const updated = { ...record, ...data, id, updatedAt: nowIso() };
     this.store.set(id, updated);
     return { ...updated };
@@ -542,10 +542,10 @@ export class InMemoryInvestigationService {
 
   async queryInvestigations(params?: any): Promise<{ investigations: any[]; total: number }> {
     const result = queryStore(Array.from(this.store.values()), params, (record, filters) => {
-      if (filters.status && record.status !== filters.status) {return false;}
-      if (filters.caseId && record.caseId !== filters.caseId) {return false;}
-      if (filters.assignedTo && record.assignedTo !== filters.assignedTo) {return false;}
-      if (!matchesSearch(record, filters.search, ['title', 'description'])) {return false;}
+      if (filters.status && record.status !== filters.status) { return false; }
+      if (filters.caseId && record.caseId !== filters.caseId) { return false; }
+      if (filters.assignedTo && record.assignedTo !== filters.assignedTo) { return false; }
+      if (!matchesSearch(record, filters.search, ['title', 'description'])) { return false; }
       return true;
     });
     return { investigations: result.items, total: result.total };
@@ -561,7 +561,7 @@ export class InMemoryInvestigationService {
 
   async closeInvestigation(id: string, data?: any): Promise<any> {
     const record = this.store.get(id);
-    if (!record) {return null;}
+    if (!record) { return null; }
     const updated = {
       ...record,
       status: 'closed',
@@ -630,7 +630,7 @@ export class InMemoryReportService {
 
   async updateReport(id: string, data: any): Promise<any> {
     const report = this.store.get(id);
-    if (!report) {return null;}
+    if (!report) { return null; }
     const updated = { ...report, ...data, id, updatedAt: nowIso() };
     this.store.set(id, updated);
     return { ...updated };
@@ -642,9 +642,9 @@ export class InMemoryReportService {
 
   async queryReports(params?: any): Promise<{ reports: any[]; total: number }> {
     const result = queryStore(Array.from(this.store.values()), params, (report, filters) => {
-      if (filters.status && report.status !== filters.status) {return false;}
-      if (filters.reportType && report.reportType !== filters.reportType) {return false;}
-      if (!matchesSearch(report, filters.search, ['title', 'description'])) {return false;}
+      if (filters.status && report.status !== filters.status) { return false; }
+      if (filters.reportType && report.reportType !== filters.reportType) { return false; }
+      if (!matchesSearch(report, filters.search, ['title', 'description'])) { return false; }
       return true;
     });
     return { reports: result.items, total: result.total };
@@ -750,7 +750,7 @@ export class InMemoryUserService {
 
   async updateUser(id: string, userData: any): Promise<any> {
     const user = this.store.get(id);
-    if (!user) {return null;}
+    if (!user) { return null; }
     const { password, ...rest } = userData || {};
     const updated = {
       ...user,
@@ -769,9 +769,9 @@ export class InMemoryUserService {
 
   async queryUsers(params?: any): Promise<{ users: any[]; total: number }> {
     const result = queryStore(Array.from(this.store.values()), params, (user, filters) => {
-      if (filters.status && user.status !== filters.status) {return false;}
-      if (filters.role && user.role !== filters.role) {return false;}
-      if (!matchesSearch(user, filters.search, ['username', 'email', 'fullName'])) {return false;}
+      if (filters.status && user.status !== filters.status) { return false; }
+      if (filters.role && user.role !== filters.role) { return false; }
+      if (!matchesSearch(user, filters.search, ['username', 'email', 'fullName'])) { return false; }
       return true;
     });
     return { users: result.items.map(user => this.toPublicUser(user)), total: result.total };
@@ -810,7 +810,7 @@ interface IssuedRefreshToken {
 export class InMemoryAuthService {
   private refreshTokens: Map<string, IssuedRefreshToken> = new Map();
 
-  constructor(private userService: InMemoryUserService) {}
+  constructor(private userService: InMemoryUserService) { }
 
   async login(credentials: any): Promise<any> {
     const identifier = credentials?.email || credentials?.username || '';
@@ -862,14 +862,14 @@ export class InMemoryAuthService {
 
   async refreshToken(token: string): Promise<any> {
     const issued = this.refreshTokens.get(token);
-    if (!issued) {return null;}
+    if (!issued) { return null; }
     if (issued.expiresAt < Date.now()) {
       this.refreshTokens.delete(token);
       return null;
     }
 
     const user = await this.userService.getUser(issued.userId);
-    if (!user) {return null;}
+    if (!user) { return null; }
 
     const accessToken = jwt.sign(
       {
@@ -1006,7 +1006,7 @@ export class InMemoryRBACService {
 
   async updateRolePermissions(roleId: string, data: any): Promise<any> {
     const role = this.roles.get(roleId);
-    if (!role) {return null;}
+    if (!role) { return null; }
     const permissions = Array.isArray(data) ? data : data?.permissions;
     const updated = {
       ...role,
@@ -1027,7 +1027,7 @@ export class InMemoryRBACService {
       'user-456': 'viewer'
     };
     const roleId = roleByUser[userId];
-    if (!roleId) {return null;}
+    if (!roleId) { return null; }
     const role = this.roles.get(roleId);
     return role?.permissions || [];
   }
