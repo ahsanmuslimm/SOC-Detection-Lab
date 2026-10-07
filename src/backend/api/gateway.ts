@@ -45,6 +45,7 @@ export class ApiGateway implements IApiGateway {
   private server: any;
   private running: boolean = false;
   private orchestrator: IServiceOrchestrator;
+  private authLimiter!: ReturnType<typeof rateLimit>;
 
   constructor(orchestrator: IServiceOrchestrator) {
     this.orchestrator = orchestrator;
@@ -69,16 +70,44 @@ export class ApiGateway implements IApiGateway {
       allowedHeaders: ['Content-Type', 'Authorization']
     }));
 
-    // Rate limiting (relaxed under test: contract suites issue hundreds of
-    // sequential requests from one host within a single window)
-    const limiter = rateLimit({
-      windowMs: 15 * 60 * 1000, // 15 minutes
-      max: process.env.NODE_ENV === 'test' ? 1000000 : 100,
-      message: 'Too many requests from this IP',
+    // ── Rate limiting ──────────────────────────────────────────────────────
+    // Global limiter — catches everything including unauthenticated probing
+    const globalLimiter = rateLimit({
+      windowMs: 15 * 60 * 1000,                                    // 15 min window
+      max: process.env.NODE_ENV === 'test' ? 1_000_000 : 200,      // 200 req / 15 min
       standardHeaders: true,
-      legacyHeaders: false
+      legacyHeaders: false,
+      handler: (_req: Request, res: Response) => {
+        res.status(429).json({
+          success: false,
+          error: {
+            code: 'RATE_LIMIT_EXCEEDED',
+            message: 'Too many requests. Please wait before trying again.',
+          },
+        });
+      },
     });
-    this.app.use(limiter);
+
+    // Strict limiter for auth endpoints — prevents brute-force attacks
+    const authLimiter = rateLimit({
+      windowMs: 15 * 60 * 1000,                                    // 15 min window
+      max: process.env.NODE_ENV === 'test' ? 1_000_000 : 20,       // 20 attempts / 15 min
+      standardHeaders: true,
+      legacyHeaders: false,
+      handler: (_req: Request, res: Response) => {
+        res.status(429).json({
+          success: false,
+          error: {
+            code: 'AUTH_RATE_LIMIT_EXCEEDED',
+            message: 'Too many authentication attempts. Please wait 15 minutes.',
+          },
+        });
+      },
+    });
+
+    this.app.use(globalLimiter);
+    // Auth-specific limiter applied to login/register routes in setupRoutes()
+    this.authLimiter = authLimiter;
 
     // Body parsing
     this.app.use(express.json({ limit: '10mb' }));
@@ -194,7 +223,8 @@ export class ApiGateway implements IApiGateway {
     this.app.use(`${API_BASE_PATH}/investigations`, createInvestigationRoutes(this.orchestrator));
     this.app.use(`${API_BASE_PATH}/users`, createUserRoutes(this.orchestrator));
     this.app.use(`${API_BASE_PATH}/reports`, createReportRoutes(this.orchestrator));
-    this.app.use(`${API_BASE_PATH}/auth`, createAuthRoutes(this.orchestrator));
+    // Auth routes get the strict limiter — prevents brute force on login/register
+    this.app.use(`${API_BASE_PATH}/auth`, this.authLimiter, createAuthRoutes(this.orchestrator));
     this.app.use(`${API_BASE_PATH}/rbac`, createRBACRoutes(this.orchestrator));
 
     // Static frontend (single-container deployment): serve the built SPA
