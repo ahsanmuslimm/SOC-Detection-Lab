@@ -16,6 +16,7 @@ import { v4 as uuidv4 } from 'uuid';
 import type { IServiceOrchestrator } from '../services/orchestrator/types';
 import type { IApiResponse, IErrorResponse, IHealthCheckResponse, IRequestContext } from './types';
 import { HTTP_STATUS, API_ERROR_CODES, API_BASE_PATH } from './types';
+import { initWSServer, SOCWebSocketServer } from './websocket';
 import {
   createAlertRoutes,
   createCaseRoutes,
@@ -46,6 +47,7 @@ export class ApiGateway implements IApiGateway {
   private running: boolean = false;
   private orchestrator: IServiceOrchestrator;
   private authLimiter!: ReturnType<typeof rateLimit>;
+  private wsServer: SOCWebSocketServer | null = null;
 
   constructor(orchestrator: IServiceOrchestrator) {
     this.orchestrator = orchestrator;
@@ -300,6 +302,10 @@ export class ApiGateway implements IApiGateway {
         console.log(`[API] ✓ Health check: GET http://localhost:${port}${API_BASE_PATH}/health`);
       });
 
+      // Attach WebSocket server to the same HTTP server
+      this.wsServer = initWSServer(this.server);
+      console.log(`[API] ✓ WebSocket server on ws://localhost:${port}/ws`);
+
       // Handle graceful shutdown
       process.on('SIGTERM', () => this.stop());
       process.on('SIGINT', () => this.stop());
@@ -315,6 +321,11 @@ export class ApiGateway implements IApiGateway {
   async stop(): Promise<void> {
     try {
       console.log('[API] Shutting down...');
+
+      // Stop WebSocket server first
+      if (this.wsServer) {
+        this.wsServer.stop();
+      }
 
       if (this.server) {
         await new Promise((resolve) => {
